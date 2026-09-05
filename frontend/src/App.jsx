@@ -30,16 +30,25 @@ export default function App() {
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
 
+  const getCleanLocationName = (loc) => {
+    if (!loc) return 'Lucknow';
+    if (typeof loc === 'string') return loc.split(',')[0].trim();
+    if (loc.searchName) return loc.searchName;
+    if (loc.name) return loc.name.split(',')[0].trim();
+    return 'Lucknow';
+  };
+
   const handleSearch = async (locationQuery) => {
-    if (!locationQuery || !locationQuery.trim()) return;
+    if (!locationQuery || (typeof locationQuery === 'string' && !locationQuery.trim())) return;
+    const cleanSearchName = getCleanLocationName(locationQuery);
     setIsSearchLoading(true);
     setSearchError(null);
 
     try {
-      const response = await fetch(`http://localhost:8000/weather?location=${encodeURIComponent(locationQuery.trim())}`);
+      const response = await fetch(`http://localhost:8000/weather?location=${encodeURIComponent(cleanSearchName)}`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Location '${locationQuery}' not found.`);
+        throw new Error(errorData.detail || `Location '${cleanSearchName}' not found.`);
       }
 
       const data = await response.json();
@@ -50,16 +59,23 @@ export default function App() {
       const windVal = curr.wind_speed_10m != null ? `${curr.wind_speed_10m} km/h` : mockCurrentWeather.metrics.wind.value;
       const precipVal = curr.precipitation != null ? `${curr.precipitation} mm` : mockCurrentWeather.metrics.precipProb.value;
 
+      const formattedDisplayName = data.admin1
+        ? `${data.location}, ${data.admin1}`
+        : data.country
+        ? `${data.location}, ${data.country}`
+        : data.location;
+
       setCurrentLocation({
         id: data.location.toLowerCase(),
-        name: data.location,
+        name: formattedDisplayName,
+        searchName: data.location,
         region: data.admin1 ? `${data.admin1}, ${data.country}` : data.country || 'Region',
         code: `${data.coordinates.latitude.toFixed(2)}°, ${data.coordinates.longitude.toFixed(2)}°`
       });
 
       setCurrentWeather((prev) => ({
         ...prev,
-        location: data.location,
+        location: formattedDisplayName,
         country: data.country || 'India',
         basin: data.admin1 || prev.basin,
         temperature: tempVal,
@@ -93,8 +109,9 @@ export default function App() {
   };
 
   const handleRefresh = () => {
-    if (currentLocation?.name) {
-      handleSearch(currentLocation.name);
+    const target = currentLocation?.searchName || getCleanLocationName(currentLocation);
+    if (target) {
+      handleSearch(target);
     } else {
       setActiveViewMode('loading');
       setTimeout(() => {
@@ -102,6 +119,7 @@ export default function App() {
       }, 800);
     }
   };
+
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
