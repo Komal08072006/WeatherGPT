@@ -1,117 +1,211 @@
-import { useState, useEffect } from 'react'
-import { CloudSun, Server, Cpu, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react'
+import React, { useState } from 'react';
+import Sidebar from './components/layout/Sidebar';
+import Header from './components/layout/Header';
+import MobileNavigation from './components/layout/MobileNavigation';
 
-function App() {
-  const [backendStatus, setBackendStatus] = useState({ loading: true, message: null, error: null })
+import DashboardPage from './pages/DashboardPage';
+import WeatherGPTChat from './components/chat/WeatherGPTChat';
+import ForecastPage from './pages/ForecastPage';
+import WeatherMapPage from './pages/WeatherMapPage';
+import AlertsPage from './pages/AlertsPage';
+import FarmerAdvisoryPage from './pages/FarmerAdvisoryPage';
+import ClimateAnalysisPage from './pages/ClimateAnalysisPage';
+import SettingsPage from './pages/SettingsPage';
 
-  useEffect(() => {
-    // Check backend connection on mount
-    fetch('http://127.0.0.1:8000/')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
-        return res.json()
-      })
-      .then(data => {
-        setBackendStatus({ loading: false, message: data.message, error: null })
-      })
-      .catch(err => {
-        setBackendStatus({ 
-          loading: false, 
-          message: null, 
-          error: 'Could not connect to FastAPI backend on http://127.0.0.1:8000. Start it with `python main.py`.' 
-        })
-      })
-  }, [])
+import {
+  mockLocations,
+  mockCurrentWeather,
+  mockHourlyForecast,
+  mockWeeklyForecast,
+  mockWeatherAlert,
+  mockFarmerAdvisory,
+  mockClimateInsight
+} from './data/mockData';
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [currentLocation, setCurrentLocation] = useState(mockLocations[0]);
+  const [currentWeather, setCurrentWeather] = useState(mockCurrentWeather);
+  const [activeViewMode, setActiveViewMode] = useState('normal'); // 'normal' | 'warning' | 'severe' | 'loading'
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(null);
+
+  const handleSearch = async (locationQuery) => {
+    if (!locationQuery || !locationQuery.trim()) return;
+    setIsSearchLoading(true);
+    setSearchError(null);
+
+    try {
+      const response = await fetch(`http://localhost:8000/weather?location=${encodeURIComponent(locationQuery.trim())}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Location '${locationQuery}' not found.`);
+      }
+
+      const data = await response.json();
+      const curr = data.weather?.current || {};
+
+      const tempVal = curr.temperature_2m != null ? Math.round(curr.temperature_2m) : mockCurrentWeather.temperature;
+      const humidityVal = curr.relative_humidity_2m != null ? `${curr.relative_humidity_2m}%` : mockCurrentWeather.metrics.humidity.value;
+      const windVal = curr.wind_speed_10m != null ? `${curr.wind_speed_10m} km/h` : mockCurrentWeather.metrics.wind.value;
+      const precipVal = curr.precipitation != null ? `${curr.precipitation} mm` : mockCurrentWeather.metrics.precipProb.value;
+
+      setCurrentLocation({
+        id: data.location.toLowerCase(),
+        name: data.location,
+        region: data.admin1 ? `${data.admin1}, ${data.country}` : data.country || 'Region',
+        code: `${data.coordinates.latitude.toFixed(2)}°, ${data.coordinates.longitude.toFixed(2)}°`
+      });
+
+      setCurrentWeather((prev) => ({
+        ...prev,
+        location: data.location,
+        country: data.country || 'India',
+        basin: data.admin1 || prev.basin,
+        temperature: tempVal,
+        feelsLike: tempVal,
+        lastUpdated: 'Just now (Live API)',
+        metrics: {
+          ...prev.metrics,
+          humidity: {
+            ...prev.metrics.humidity,
+            value: humidityVal,
+            subText: 'Live sensor reading'
+          },
+          wind: {
+            ...prev.metrics.wind,
+            value: windVal,
+            subText: '10m elevation'
+          },
+          precipProb: {
+            ...prev.metrics.precipProb,
+            label: 'Precipitation',
+            value: precipVal,
+            subText: 'Current rainfall'
+          }
+        }
+      }));
+    } catch (err) {
+      setSearchError(err.message || 'Failed to fetch weather data');
+    } finally {
+      setIsSearchLoading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (currentLocation?.name) {
+      handleSearch(currentLocation.name);
+    } else {
+      setActiveViewMode('loading');
+      setTimeout(() => {
+        setActiveViewMode('normal');
+      }, 800);
+    }
+  };
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const renderActivePage = () => {
+    switch (activeTab) {
+      case 'ai':
+      case 'weathergpt':
+        return (
+          <WeatherGPTChat
+            currentLocation={currentLocation}
+            onNavigateToAlerts={() => handleTabChange('alerts')}
+          />
+        );
+
+      case 'forecast':
+      case 'weather-forecast':
+        return (
+          <ForecastPage
+            mockHourlyForecast={mockHourlyForecast}
+            mockWeeklyForecast={mockWeeklyForecast}
+            currentLocation={currentLocation}
+          />
+        );
+
+      case 'map':
+      case 'weather-map':
+        return <WeatherMapPage currentLocation={currentLocation} />;
+
+      case 'alerts':
+        return (
+          <AlertsPage
+            mockWeatherAlert={mockWeatherAlert}
+            currentLocation={currentLocation}
+          />
+        );
+
+      case 'advisory':
+      case 'farmer-advisory':
+        return (
+          <FarmerAdvisoryPage
+            mockFarmerAdvisory={mockFarmerAdvisory}
+            currentLocation={currentLocation}
+          />
+        );
+
+      case 'climate':
+      case 'climate-analysis':
+        return (
+          <ClimateAnalysisPage
+            mockClimateInsight={mockClimateInsight}
+            currentLocation={currentLocation}
+          />
+        );
+
+      case 'settings':
+        return <SettingsPage currentLocation={currentLocation} />;
+
+      case 'dashboard':
+      default:
+        return (
+          <DashboardPage
+            currentLocation={currentLocation}
+            mockCurrentWeather={currentWeather}
+            mockHourlyForecast={mockHourlyForecast}
+            mockWeeklyForecast={mockWeeklyForecast}
+            mockWeatherAlert={mockWeatherAlert}
+            mockFarmerAdvisory={mockFarmerAdvisory}
+            mockClimateInsight={mockClimateInsight}
+            activeViewMode={isSearchLoading ? 'loading' : activeViewMode}
+            setActiveViewMode={setActiveViewMode}
+            handleRefresh={handleRefresh}
+            onNavigate={handleTabChange}
+          />
+        );
+    }
+  };
 
   return (
-    <div className="app-container">
-      {/* Navigation Header */}
-      <header className="navbar">
-        <div className="brand">
-          <div className="brand-icon">
-            <CloudSun size={24} />
-          </div>
-          <h1 className="brand-title gradient-text">WeatherGPT</h1>
-        </div>
-        <div className="badge">
-          <span className="badge-dot"></span>
-          Initial Setup Ready
-        </div>
-      </header>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col md:flex-row antialiased font-sans">
+      {/* Desktop Sidebar */}
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
 
-      {/* Hero Section */}
-      <main className="hero">
-        <h1 className="hero-title">
-          Welcome to <span className="gradient-text">WeatherGPT</span>
-        </h1>
-        <p className="hero-subtitle">
-          Intelligent AI-driven weather insights and forecast engine powered by FastAPI & React + Vite.
-        </p>
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-6">
+        {/* Top Header */}
+        <Header
+          currentLocation={currentLocation}
+          onLocationChange={setCurrentLocation}
+          onSearch={handleSearch}
+          searchError={searchError}
+          isLoading={isSearchLoading}
+        />
 
-      {/* Service Status Cards */}
-      <div className="status-grid">
-        {/* Frontend Status */}
-        <div className="glass-card status-card">
-          <div className="card-header">
-            <div className="card-icon">
-              <Cpu size={20} />
-            </div>
-            <h2 className="card-title">Frontend Status</h2>
-          </div>
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#34d399', marginBottom: '0.5rem', fontWeight: 600 }}>
-              <CheckCircle2 size={18} />
-              React + Vite Dev Server Active
-            </div>
-            <p>Running smoothly on local dev server.</p>
-          </div>
-          <div className="code-block">
-            npm run dev
-          </div>
-        </div>
-
-        {/* Backend Status */}
-        <div className="glass-card status-card">
-          <div className="card-header">
-            <div className="card-icon">
-              <Server size={20} />
-            </div>
-            <h2 className="card-title">FastAPI Backend Status</h2>
-          </div>
-          <div className="card-body">
-            {backendStatus.loading ? (
-              <p style={{ color: '#94a3b8' }}>Checking connection to backend...</p>
-            ) : backendStatus.error ? (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#f87171', marginBottom: '0.5rem', fontWeight: 600 }}>
-                  <AlertCircle size={18} />
-                  Backend Offline
-                </div>
-                <p style={{ fontSize: '0.85rem' }}>{backendStatus.error}</p>
-              </div>
-            ) : (
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#34d399', marginBottom: '0.5rem', fontWeight: 600 }}>
-                  <CheckCircle2 size={18} />
-                  Connected to Backend
-                </div>
-                <p style={{ color: '#f8fafc', fontWeight: 500 }}>"{backendStatus.message}"</p>
-              </div>
-            )}
-          </div>
-          <div className="code-block">
-            python main.py
-          </div>
-        </div>
+        {/* Page Container */}
+        <main className="flex-1 px-3 sm:px-6 lg:px-8 py-5 max-w-7xl mx-auto w-full">
+          {renderActivePage()}
+        </main>
       </div>
 
-      {/* Footer */}
-      <footer className="footer">
-        <p>WeatherGPT Scaffold • React (Vite) + FastAPI • Ready for expansion</p>
-      </footer>
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileNavigation activeTab={activeTab} setActiveTab={handleTabChange} />
     </div>
-  )
+  );
 }
-
-export default App

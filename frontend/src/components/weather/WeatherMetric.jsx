@@ -1,0 +1,31 @@
+import React from 'react';
+
+export default function WeatherMetric({ label, value, status, subText, icon: Icon, valueColor }) {
+  return (
+    <div className="bg-white/80 backdrop-blur-xs border border-slate-200/60 rounded-xl p-3 shadow-2xs hover:shadow-xs transition-all duration-200 flex flex-col justify-between">
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          {label}
+        </span>
+        {Icon && <Icon className="w-3.5 h-3.5 text-sky-500 stroke-[2]" />}
+      </div>
+
+      <div className="flex items-baseline gap-1.5 my-0.5">
+        <span className={`text-base sm:text-lg font-bold ${valueColor || 'text-slate-800'}`}>
+          {value}
+        </span>
+        {status && (
+          <span className="text-[10px] font-semibold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">
+            {status}
+          </span>
+        )}
+      </div>
+
+      {subText && (
+        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+          {subText}
+        </p>
+      )}
+    </div>
+  );
+}
