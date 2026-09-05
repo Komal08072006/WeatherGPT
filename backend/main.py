@@ -42,31 +42,71 @@ class ChatRequest(BaseModel):
     message: str
 
 
-async def fetch_weather_data(location: str) -> dict:
-    if not location or not location.strip():
-        raise HTTPException(status_code=400, detail="Location parameter must not be empty.")
+async def fetch_weather_data(
+    location: str | None = None,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> dict:
+    has_location = bool(location and location.strip())
+    has_coords = latitude is not None and longitude is not None
+
+    if not has_location and not has_coords:
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+        )
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        # 1. Convert location name to latitude/longitude using Open-Meteo Geocoding API
-        geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-        geo_response = await client.get(
-            geo_url,
-            params={"name": location.strip(), "count": 1, "language": "en", "format": "json"}
-        )
-        geo_response.raise_for_status()
-        geo_data = geo_response.json()
+        lat = None
+        lon = None
+        location_name = "Current Location"
+        country = ""
+        admin1 = ""
 
-        results = geo_data.get("results")
-        if not results:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Location '{location}' not found."
+        if has_coords:
+            lat = latitude
+            lon = longitude
+            try:
+                rev_res = await client.get(
+                    "https://api.bigdatacloud.net/data/reverse-geocode-client",
+                    params={"latitude": lat, "longitude": lon}
+                )
+                if rev_res.status_code == 200:
+                    rev_data = rev_res.json()
+                    name = (
+                        rev_data.get("city")
+                        or rev_data.get("locality")
+                        or rev_data.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+                    )
+                    if name:
+                        location_name = name
+                    country = rev_data.get("countryName", "")
+                    admin1 = rev_data.get("principalSubdivision", "")
+            except Exception:
+                pass
+        else:
+            # 1. Convert location name to latitude/longitude using Open-Meteo Geocoding API
+            geo_url = "https://geocoding-api.open-meteo.com/v1/search"
+            geo_response = await client.get(
+                geo_url,
+                params={"name": location.strip(), "count": 1, "language": "en", "format": "json"}
             )
+            geo_response.raise_for_status()
+            geo_data = geo_response.json()
 
-        location_info = results[0]
-        lat = location_info.get("latitude")
-        lon = location_info.get("longitude")
-        location_name = location_info.get("name", location)
+            results = geo_data.get("results")
+            if not results:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Location '{location}' not found."
+                )
+
+            location_info = results[0]
+            lat = location_info.get("latitude")
+            lon = location_info.get("longitude")
+            location_name = location_info.get("name", location)
+            country = location_info.get("country", "")
+            admin1 = location_info.get("admin1", "")
 
         # 2. Call Open-Meteo Forecast API using latitude and longitude
         forecast_url = "https://api.open-meteo.com/v1/forecast"
@@ -85,8 +125,8 @@ async def fetch_weather_data(location: str) -> dict:
         # 3. Return JSON response containing location name, coordinates, and full weather data
         return {
             "location": location_name,
-            "country": location_info.get("country", ""),
-            "admin1": location_info.get("admin1", ""),
+            "country": country,
+            "admin1": admin1,
             "coordinates": {
                 "latitude": lat,
                 "longitude": lon,
@@ -151,10 +191,18 @@ async def geocode_location(query: str = Query("", description="Location search q
 
 
 @app.get("/weather")
-
-async def get_weather(location: str = Query(..., description="Name of the location/city")):
+async def get_weather(
+    location: str | None = Query(None, description="Name of the location/city"),
+    latitude: float | None = Query(None, description="Latitude coordinate"),
+    longitude: float | None = Query(None, description="Longitude coordinate"),
+):
+    if not location and (latitude is None or longitude is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+        )
     try:
-        return await fetch_weather_data(location)
+        return await fetch_weather_data(location=location, latitude=latitude, longitude=longitude)
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
@@ -229,9 +277,18 @@ def evaluate_alert(weather_data: dict) -> dict:
 
 
 @app.get("/alerts")
-async def get_alerts(location: str = Query(..., description="Name of the location/city")):
+async def get_alerts(
+    location: str | None = Query(None, description="Name of the location/city"),
+    latitude: float | None = Query(None, description="Latitude coordinate"),
+    longitude: float | None = Query(None, description="Longitude coordinate"),
+):
+    if not location and (latitude is None or longitude is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+        )
     try:
-        weather_data = await fetch_weather_data(location)
+        weather_data = await fetch_weather_data(location=location, latitude=latitude, longitude=longitude)
         return evaluate_alert(weather_data)
     except HTTPException:
         raise

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Navigation, Search, Bell, ChevronDown, Globe, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Header({
   currentLocation,
@@ -8,12 +9,16 @@ export default function Header({
   searchError,
   isLoading
 }) {
+  const { currentUser, userProfile } = useAuth();
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const [language, setLanguage] = useState('ENG');
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const [geoError, setGeoError] = useState(null);
+  const [isGeoLoading, setIsGeoLoading] = useState(false);
 
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -41,7 +46,38 @@ export default function Header({
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  const handleCurrentLocationClick = () => {
+    setGeoError(null);
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation is not supported by your browser. Please search for your city instead.");
+      return;
+    }
+
+    setIsGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setIsGeoLoading(false);
+        if (onSearch) {
+          onSearch({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        }
+      },
+      (error) => {
+        setIsGeoLoading(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setGeoError("Location access denied. Please search for your city instead.");
+        } else {
+          setGeoError("Location access denied. Please search for your city instead.");
+        }
+      },
+      { timeout: 10000 }
+    );
+  };
+
   const handleSelectLocation = (loc) => {
+    setGeoError(null);
     if (onSearch) {
       onSearch(loc.name);
     }
@@ -51,6 +87,7 @@ export default function Header({
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setGeoError(null);
     if (searchTerm.trim() && onSearch) {
       if (suggestions.length > 0) {
         handleSelectLocation(suggestions[0]);
@@ -75,9 +112,18 @@ export default function Header({
         </button>
 
         {/* Current Location Pill Badge */}
-        <button className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-xs font-medium hover:bg-emerald-100/80 transition-colors">
-          <Navigation className="w-3 h-3 text-emerald-600 fill-emerald-600" />
-          <span>Current Location</span>
+        <button
+          type="button"
+          onClick={handleCurrentLocationClick}
+          disabled={isLoading || isGeoLoading}
+          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-xs font-medium hover:bg-emerald-100/80 transition-colors cursor-pointer disabled:opacity-50"
+        >
+          {isGeoLoading ? (
+            <Loader2 className="w-3 h-3 text-emerald-600 animate-spin" />
+          ) : (
+            <Navigation className="w-3 h-3 text-emerald-600 fill-emerald-600" />
+          )}
+          <span>{isGeoLoading ? 'Getting location...' : 'Current Location'}</span>
         </button>
 
         {/* Dropdown Menu for Location Selector */}
@@ -190,9 +236,9 @@ export default function Header({
           </div>
         )}
 
-        {searchError && (
+        {(searchError || geoError) && (
           <div className="absolute top-full left-0 right-0 mt-1 px-3 py-1 bg-red-50 border border-red-200 text-red-600 text-[11px] font-medium rounded-lg shadow-sm z-30 flex items-center justify-between">
-            <span>{searchError}</span>
+            <span>{geoError || searchError}</span>
           </div>
         )}
       </div>
@@ -225,14 +271,21 @@ export default function Header({
         </div>
 
         {/* Profile Avatar (Mobile/Header) */}
-        <div className="w-8 h-8 rounded-full bg-sky-100 border border-sky-300 flex items-center justify-center font-semibold text-xs text-sky-700 overflow-hidden shrink-0 cursor-pointer">
-          <img 
-            src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=120&auto=format&fit=crop" 
-            alt="User Avatar"
-            className="w-full h-full object-cover"
-            onError={(e) => { e.target.style.display = 'none'; }}
-          />
-          <span>PS</span>
+        <div 
+          title={userProfile?.name || currentUser?.displayName || 'User Profile'}
+          className="w-8 h-8 rounded-full bg-sky-100 border border-sky-300 flex items-center justify-center font-bold text-xs text-sky-700 overflow-hidden shrink-0 cursor-pointer shadow-2xs"
+        >
+          {(userProfile?.photoURL || currentUser?.photoURL) ? (
+            <img 
+              src={userProfile?.photoURL || currentUser?.photoURL} 
+              alt={userProfile?.name || 'User Avatar'}
+              className="w-full h-full object-cover"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : null}
+          <span>
+            {userProfile?.name ? userProfile.name[0].toUpperCase() : currentUser?.displayName ? currentUser.displayName[0].toUpperCase() : 'U'}
+          </span>
         </div>
       </div>
     </header>

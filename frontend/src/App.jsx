@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Sidebar from './components/layout/Sidebar';
 import Header from './components/layout/Header';
 import MobileNavigation from './components/layout/MobileNavigation';
+
+import LandingPage from './pages/LandingPage';
+import LoginPage from './pages/LoginPage';
 
 import DashboardPage from './pages/DashboardPage';
 import WeatherGPTChat from './components/chat/WeatherGPTChat';
@@ -11,6 +15,9 @@ import AlertsPage from './pages/AlertsPage';
 import FarmerAdvisoryPage from './pages/FarmerAdvisoryPage';
 import ClimateAnalysisPage from './pages/ClimateAnalysisPage';
 import SettingsPage from './pages/SettingsPage';
+
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { Loader2, Cloud } from 'lucide-react';
 
 import {
   mockLocations,
@@ -22,13 +29,28 @@ import {
   mockClimateInsight
 } from './data/mockData';
 
-export default function App() {
+function ExistingDashboard() {
+  const { loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentLocation, setCurrentLocation] = useState(mockLocations[0]);
   const [currentWeather, setCurrentWeather] = useState(mockCurrentWeather);
   const [activeViewMode, setActiveViewMode] = useState('normal'); // 'normal' | 'warning' | 'severe' | 'loading'
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4 font-sans">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/25 animate-pulse">
+          <Cloud className="w-7 h-7 text-white" />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-300 font-medium">
+          <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+          <span>Authenticating WeatherGPT session...</span>
+        </div>
+      </div>
+    );
+  }
 
   const getCleanLocationName = (loc) => {
     if (!loc) return 'Lucknow';
@@ -39,16 +61,27 @@ export default function App() {
   };
 
   const handleSearch = async (locationQuery) => {
-    if (!locationQuery || (typeof locationQuery === 'string' && !locationQuery.trim())) return;
-    const cleanSearchName = getCleanLocationName(locationQuery);
+    if (!locationQuery) return;
     setIsSearchLoading(true);
     setSearchError(null);
 
     try {
-      const response = await fetch(`http://localhost:8000/weather?location=${encodeURIComponent(cleanSearchName)}`);
+      let url = '';
+      if (typeof locationQuery === 'object' && locationQuery.latitude != null && locationQuery.longitude != null) {
+        url = `http://localhost:8000/weather?latitude=${locationQuery.latitude}&longitude=${locationQuery.longitude}`;
+      } else {
+        if (typeof locationQuery === 'string' && !locationQuery.trim()) {
+          setIsSearchLoading(false);
+          return;
+        }
+        const cleanSearchName = getCleanLocationName(locationQuery);
+        url = `http://localhost:8000/weather?location=${encodeURIComponent(cleanSearchName)}`;
+      }
+
+      const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Location '${cleanSearchName}' not found.`);
+        throw new Error(errorData.detail || 'Failed to fetch weather data');
       }
 
       const data = await response.json();
@@ -69,6 +102,8 @@ export default function App() {
         id: data.location.toLowerCase(),
         name: formattedDisplayName,
         searchName: data.location,
+        latitude: data.coordinates.latitude,
+        longitude: data.coordinates.longitude,
         region: data.admin1 ? `${data.admin1}, ${data.country}` : data.country || 'Region',
         code: `${data.coordinates.latitude.toFixed(2)}°, ${data.coordinates.longitude.toFixed(2)}°`
       });
@@ -119,7 +154,6 @@ export default function App() {
       }, 800);
     }
   };
-
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -227,3 +261,45 @@ export default function App() {
     </div>
   );
 }
+
+function ProtectedRoute({ children }) {
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-4 font-sans">
+        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/25 animate-pulse">
+          <Cloud className="w-7 h-7 text-white" />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-300 font-medium">
+          <Loader2 className="w-4 h-4 text-sky-400 animate-spin" />
+          <span>Authenticating WeatherGPT session...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard/*" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
+}
+
+

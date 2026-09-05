@@ -5,6 +5,8 @@ export default function MainWeatherHeader({
   activeViewMode,
   setActiveViewMode,
   locationName,
+  conditionText,
+  temperature,
   lastUpdated,
   onRefresh
 }) {
@@ -15,15 +17,19 @@ export default function MainWeatherHeader({
     { id: 'loading', label: 'API Loading' }
   ];
 
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
+
   return (
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
       {/* Greeting & Overview */}
       <div>
         <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-          Good evening <span className="animate-bounce inline-block">👋</span>
+          {greeting} <span className="animate-bounce inline-block">👋</span>
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-xl">
-          Here's your real-time atmospheric intelligence & agricultural overview for <span className="font-semibold text-slate-700">{locationName}</span>.
+          Here's your real-time atmospheric intelligence & agricultural overview for <span className="font-semibold text-slate-700">{locationName}</span>
+          {conditionText && temperature != null ? `, currently ${conditionText.toLowerCase()} at ${temperature}°C.` : '.'}
         </p>
       </div>
 

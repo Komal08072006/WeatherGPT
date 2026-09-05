@@ -15,7 +15,11 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
     setLoading(true);
     setError(null);
 
-    fetch(`http://localhost:8000/alerts?location=${encodeURIComponent(searchLocation)}`)
+    const alertUrl = (currentLocation?.latitude != null && currentLocation?.longitude != null)
+      ? `http://localhost:8000/alerts?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
+      : `http://localhost:8000/alerts?location=${encodeURIComponent(searchLocation)}`;
+
+    fetch(alertUrl)
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Failed to load alerts for ${displayLocation}`);
@@ -41,7 +45,7 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
     return () => {
       isMounted = false;
     };
-  }, [searchLocation, displayLocation]);
+  }, [searchLocation, displayLocation, currentLocation?.latitude, currentLocation?.longitude]);
 
 
   return (
