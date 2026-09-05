@@ -98,6 +98,117 @@ export default function DashboardPage({
     ? `${realWeather.location}, ${realWeather.country}`
     : realWeather?.location || displayLocation;
 
+  // Parse Hourly Forecast (next 8 hours starting from current hour)
+  const parsedHourlyForecast = [];
+  if (hourly.time && hourly.temperature_2m && hourly.precipitation_probability) {
+    const now = new Date();
+    let startIdx = hourly.time.findIndex((t) => new Date(t) >= now);
+    if (startIdx === -1 || startIdx > hourly.time.length - 8) {
+      startIdx = Math.max(0, hourly.time.length - 8);
+    }
+
+    for (let i = startIdx; i < startIdx + 8 && i < hourly.time.length; i++) {
+      const timeStr = hourly.time[i];
+      const dateObj = new Date(timeStr);
+      const hours = dateObj.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const h12 = hours % 12 === 0 ? 12 : hours % 12;
+      const formattedTime = `${h12} ${ampm}`;
+
+      const temp = Math.round(hourly.temperature_2m[i]);
+      const precip = hourly.precipitation_probability[i] != null ? hourly.precipitation_probability[i] : 0;
+
+      let condition = 'Clear';
+      let icon = 'Sun';
+      if (precip > 60) {
+        condition = 'Rain';
+        icon = 'CloudRain';
+      } else if (precip > 30) {
+        condition = 'Overcast';
+        icon = 'Cloud';
+      } else if (precip > 10) {
+        condition = 'Partly Cloudy';
+        icon = 'CloudSun';
+      } else {
+        condition = 'Clear';
+        icon = (hours < 6 || hours >= 20) ? 'Moon' : 'Sun';
+      }
+
+      parsedHourlyForecast.push({
+        time: formattedTime,
+        temp: temp,
+        precip: precip,
+        condition: condition,
+        icon: icon
+      });
+    }
+  }
+
+  const hourlyDataToRender = parsedHourlyForecast.length > 0 ? parsedHourlyForecast : mockHourlyForecast;
+
+  // Parse 7-Day Weekly Forecast
+  const daily = weatherObj.daily || {};
+  const parsedWeeklyForecast = [];
+  if (daily.time && daily.temperature_2m_max && daily.temperature_2m_min) {
+    const daysCount = Math.min(7, daily.time.length);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 0; i < daysCount; i++) {
+      const dateStr = daily.time[i];
+      let dayLabel = '';
+      if (i === 0) {
+        dayLabel = 'Today';
+      } else if (i === 1) {
+        dayLabel = 'Tomorrow';
+      } else {
+        const d = new Date(dateStr + 'T00:00:00');
+        dayLabel = dayNames[d.getDay()];
+      }
+
+      const maxTemp = Math.round(daily.temperature_2m_max[i]);
+      const minTemp = Math.round(daily.temperature_2m_min[i]);
+      const precipSum = daily.precipitation_sum && daily.precipitation_sum[i] != null ? daily.precipitation_sum[i] : 0;
+
+      let precipProb = 0;
+      if (hourly.precipitation_probability) {
+        const dayHourlySlice = hourly.precipitation_probability.slice(i * 24, (i + 1) * 24);
+        if (dayHourlySlice.length > 0) {
+          precipProb = Math.max(...dayHourlySlice.filter((p) => p != null));
+        }
+      }
+
+      let condition = 'Clear';
+      let icon = 'Sun';
+      if (precipSum > 15) {
+        condition = 'Heavy Rain';
+        icon = 'CloudLightning';
+      } else if (precipSum > 2) {
+        condition = 'Light Rain';
+        icon = 'CloudRain';
+      } else if (precipSum > 0) {
+        condition = 'Drizzle';
+        icon = 'Cloud';
+      } else if (precipProb > 50) {
+        condition = 'Overcast';
+        icon = 'CloudSun';
+      } else {
+        condition = 'Clear';
+        icon = 'Sun';
+      }
+
+      parsedWeeklyForecast.push({
+        day: dayLabel,
+        condition: condition,
+        precip: precipProb,
+        minTemp: minTemp,
+        maxTemp: maxTemp,
+        icon: icon
+      });
+    }
+  }
+
+  const weeklyDataToRender = parsedWeeklyForecast.length > 0 ? parsedWeeklyForecast : mockWeeklyForecast;
+
   const cardData = {
     location: formattedDisplayName,
     country: realWeather?.country || '',
@@ -192,18 +303,18 @@ export default function DashboardPage({
           />
 
           {/* Hourly Forecast & Rain Trajectory */}
-          <HourlyForecast hourlyData={mockHourlyForecast} />
+          <HourlyForecast hourlyData={hourlyDataToRender} />
 
           {/* Lower Dashboard Section */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* LEFT COLUMN */}
             <div className="lg:col-span-6 flex flex-col gap-6">
               <div className="h-full">
-                <WeeklyForecast weeklyData={mockWeeklyForecast} />
+                <WeeklyForecast weeklyData={weeklyDataToRender} />
               </div>
               <div className="h-full">
                 <FarmerAdvisory
-                  advisoryData={mockFarmerAdvisory}
+                  currentLocation={currentLocation}
                   onViewDetailed={() => onNavigate('advisory')}
                 />
               </div>

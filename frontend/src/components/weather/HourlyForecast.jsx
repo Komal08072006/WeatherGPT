@@ -19,8 +19,10 @@ import {
   CartesianGrid
 } from 'recharts';
 
-export default function HourlyForecast({ hourlyData }) {
-  const [selectedHour, setSelectedHour] = useState('9 PM');
+export default function HourlyForecast({ hourlyData = [] }) {
+  const [selectedHour, setSelectedHour] = useState(null);
+
+  const activeHour = selectedHour || (hourlyData.length > 0 ? hourlyData[0].time : '');
 
   // Helper icon generator
   const renderWeatherIcon = (iconName) => {
@@ -86,11 +88,11 @@ export default function HourlyForecast({ hourlyData }) {
 
       {/* Hourly Card Strip (Horizontal Scroll on mobile) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-3 pt-1 scrollbar-none">
-        {hourlyData.map((item) => {
-          const isSelected = selectedHour === item.time;
+        {hourlyData.map((item, idx) => {
+          const isSelected = activeHour === item.time || (idx === 0 && !selectedHour);
           return (
             <button
-              key={item.time}
+              key={idx}
               onClick={() => setSelectedHour(item.time)}
               className={`flex-1 min-w-[76px] sm:min-w-[88px] p-2.5 rounded-xl border text-center transition-all duration-200 flex flex-col items-center gap-1.5 shrink-0 ${
                 isSelected
@@ -124,7 +126,7 @@ export default function HourlyForecast({ hourlyData }) {
             <YAxis
               yAxisId="left"
               orientation="left"
-              domain={[18, 35]}
+              domain={['dataMin - 2', 'dataMax + 2']}
               axisLine={false}
               tickLine={false}
               tick={{ fill: '#0284c7', fontSize: 10 }}

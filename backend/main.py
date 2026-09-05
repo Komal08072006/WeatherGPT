@@ -40,6 +40,7 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str
+    language: str = "English"
 
 
 async def fetch_weather_data(
@@ -85,11 +86,11 @@ async def fetch_weather_data(
             except Exception:
                 pass
         else:
-            # 1. Convert location name to latitude/longitude using Open-Meteo Geocoding API
+            # 1. Convert location name to latitude/longitude using Open-Meteo Geocoding API (ranked by population)
             geo_url = "https://geocoding-api.open-meteo.com/v1/search"
             geo_response = await client.get(
                 geo_url,
-                params={"name": location.strip(), "count": 1, "language": "en", "format": "json"}
+                params={"name": location.strip(), "count": 5, "language": "en", "format": "json"}
             )
             geo_response.raise_for_status()
             geo_data = geo_response.json()
@@ -101,7 +102,8 @@ async def fetch_weather_data(
                     detail=f"Location '{location}' not found."
                 )
 
-            location_info = results[0]
+            # Select result with highest population (falling back to first result if missing)
+            location_info = max(results, key=lambda x: x.get("population") or 0)
             lat = location_info.get("latitude")
             lon = location_info.get("longitude")
             location_name = location_info.get("name", location)
@@ -380,14 +382,28 @@ async def chat_endpoint(request: ChatRequest):
     # 2. If no location is mentioned, return a friendly clarification response instead of defaulting to Delhi
     if not location_name:
         user_lower = user_text.lower()
-        greeting_keywords = ["hi", "hii", "hiii", "hello", "hey", "heyy", "greetings", "good morning", "good afternoon", "good evening"]
+        greeting_keywords = ["hi", "hii", "hiii", "hello", "hey", "heyy", "greetings", "good morning", "good afternoon", "good evening", "namaste", "pranam"]
         words = re.findall(r'\b\w+\b', user_lower)
-        is_greeting = any(w in greeting_keywords for w in words) or user_lower.startswith(("hi", "hello", "hey"))
+        is_greeting = any(w in greeting_keywords for w in words) or user_lower.startswith(("hi", "hello", "hey", "namaste"))
 
-        if is_greeting:
-            clarification_answer = "Hi! I can tell you the weather for any city — which place would you like to check?"
+        target_lang = request.language if request.language and request.language.strip() else "English"
+        if target_lang.lower() in ["hindi", "hi"]:
+            clarification_answer = "नमस्ते! मैं आपको किसी भी शहर का मौसम बता सकता हूँ — आप किस जगह का मौसम देखना चाहते हैं?" if is_greeting else "आप किस शहर या जगह का मौसम जानना चाहते हैं?"
+        elif target_lang.lower() in ["english", "en"]:
+            clarification_answer = "Hi! I can tell you the weather for any city — which place would you like to check?" if is_greeting else "Which city or place would you like the weather for?"
         else:
-            clarification_answer = "Which city or place would you like the weather for?"
+            try:
+                clarification_instruction = (
+                    f"CRITICAL MANDATE: You MUST respond ONLY in {target_lang}. "
+                    "Do NOT include any English, Hindi, translation notice, pronunciation guide, parenthetical notes, or meta-commentary of any kind — output ONLY the direct text in {target_lang}, nothing else."
+                )
+                prompt_text = (
+                    f"Translate the following user-facing clarification message into {target_lang}: "
+                    f"'{'Hi! I can tell you the weather for any city — which place would you like to check?' if is_greeting else 'Which city or place would you like the weather for?'}'"
+                )
+                clarification_answer = generate_gemini_content(prompt_text, system_instruction=clarification_instruction)
+            except Exception:
+                clarification_answer = "Hi! I can tell you the weather for any city — which place would you like to check?" if is_greeting else "Which city or place would you like the weather for?"
 
         return {
             "simple_answer": clarification_answer,
@@ -419,12 +435,15 @@ async def chat_endpoint(request: ChatRequest):
 
     # 4. Generate simple answer with Gemini using real weather context
     try:
+        target_lang = request.language if request.language and request.language.strip() else "English"
         answer_instruction = (
             "You are WeatherGPT, a weather assistant for everyday users with no technical background. "
             "You will receive real weather data as JSON. Answer the user's original question in 1-3 short, plain sentences. "
             "Do NOT use jargon like 'convective,' 'confidence interval,' model names, or coordinates. "
             "State what the weather is/will be and one practical suggestion if relevant. "
-            "Base your answer only on the provided real data — never invent numbers."
+            "Base your answer only on the provided real data — never invent numbers. "
+            f"CRITICAL MANDATE: You MUST respond ONLY in {target_lang}. All output text MUST be written strictly and entirely in {target_lang} script/language as a native speaker would. "
+            "Do NOT include any English explanation, Hindi fallback, translation notice, pronunciation guide, parenthetical notes, or meta-commentary of any kind — output ONLY the direct answer text in {target_lang}, nothing else."
         )
         context_prompt = (
             f"User Question: {user_text}\n"
@@ -446,9 +465,107 @@ async def chat_endpoint(request: ChatRequest):
     }
 
 
+@app.get("/farmer-advisory")
+async def get_farmer_advisory(
+    location: str | None = Query(None, description="Name of the location/city"),
+    latitude: float | None = Query(None, description="Latitude coordinate"),
+    longitude: float | None = Query(None, description="Longitude coordinate"),
+    language: str = Query("English", description="Target language for advisory recommendations"),
+):
+    if not location and (latitude is None or longitude is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+        )
+
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="GEMINI_API_KEY environment variable is not configured."
+        )
+
+    try:
+        weather_data = await fetch_weather_data(location=location, latitude=latitude, longitude=longitude)
+    except HTTPException:
+        raise
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"External weather service responded with error status: {exc.response.status_code}"
+        )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to external weather service: {str(exc)}"
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch weather data for farmer advisory: {str(exc)}"
+        )
+
+    target_lang = language.strip() if language and language.strip() else "English"
+    resolved_location = weather_data.get("location", location or "Current Location")
+
+    advisory_instruction = (
+        "You are an agricultural advisory assistant for Indian farmers. You will receive real weather data (current conditions, hourly forecast, 7-day forecast) as JSON. "
+        "Generate 3-4 short, practical farming recommendations based ONLY on this real data — e.g. whether to delay irrigation, pause pesticide spraying, protect crops from heavy rain, or harvest before expected rain. "
+        "Each recommendation should be one or two plain sentences, no jargon, no invented statistics or made-up organization names. "
+        f"You MUST write the 'title' and 'advice' fields entirely in {target_lang} — do not include any English translation, pronunciation guide, or meta-commentary of any kind if {target_lang} is not English; output ONLY the direct text in {target_lang}. "
+        "Respond as a JSON array of objects, each with 'title' and 'advice'. "
+        "Do not include code fences, markdown formatting, or any introductory text outside the JSON array."
+    )
+
+    context_prompt = (
+        f"Location: {resolved_location}\n"
+        f"Target Language: {target_lang}\n"
+        f"Real Weather Data JSON: {json.dumps(weather_data)}"
+    )
+
+    try:
+        raw_text = generate_gemini_content(context_prompt, system_instruction=advisory_instruction)
+        clean_json_str = re.sub(r"^```(?:json)?|```$", "", raw_text, flags=re.MULTILINE).strip()
+        parsed = json.loads(clean_json_str)
+
+        if isinstance(parsed, dict) and "recommendations" in parsed:
+            recommendations = parsed["recommendations"]
+        elif isinstance(parsed, list):
+            recommendations = parsed
+        else:
+            recommendations = [parsed] if isinstance(parsed, dict) else []
+
+        formatted_recs = []
+        for item in recommendations:
+            if isinstance(item, dict):
+                title = item.get("title") or item.get("heading") or "Farming Recommendation"
+                advice = item.get("advice") or item.get("recommendation") or item.get("description") or ""
+                formatted_recs.append({"title": title, "advice": advice})
+
+        if not formatted_recs:
+            raise ValueError("No recommendations generated")
+
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to parse AI response into JSON for farmer advisory: {str(exc)}"
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini API error during advisory generation: {str(exc)}"
+        )
+
+    return {
+        "location": resolved_location,
+        "language": target_lang,
+        "recommendations": formatted_recs,
+        "source": "Open-Meteo + AI Analysis",
+    }
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
 
 
 

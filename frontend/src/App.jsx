@@ -37,6 +37,7 @@ function ExistingDashboard() {
   const [activeViewMode, setActiveViewMode] = useState('normal'); // 'normal' | 'warning' | 'severe' | 'loading'
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
+  const [selectedLanguage, setSelectedLanguage] = useState('English');
 
   if (authLoading) {
     return (
@@ -167,6 +168,7 @@ function ExistingDashboard() {
         return (
           <WeatherGPTChat
             currentLocation={currentLocation}
+            selectedLanguage={selectedLanguage}
             onNavigateToAlerts={() => handleTabChange('alerts')}
           />
         );
@@ -199,6 +201,7 @@ function ExistingDashboard() {
           <FarmerAdvisoryPage
             mockFarmerAdvisory={mockFarmerAdvisory}
             currentLocation={currentLocation}
+            selectedLanguage={selectedLanguage}
           />
         );
 
@@ -248,6 +251,8 @@ function ExistingDashboard() {
           onSearch={handleSearch}
           searchError={searchError}
           isLoading={isSearchLoading}
+          selectedLanguage={selectedLanguage}
+          onLanguageChange={setSelectedLanguage}
         />
 
         {/* Page Container */}

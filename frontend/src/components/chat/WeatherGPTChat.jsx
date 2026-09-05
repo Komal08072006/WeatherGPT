@@ -24,21 +24,30 @@ import {
   RefreshCw
 } from 'lucide-react';
 
-export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) {
+export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'English', onNavigateToAlerts }) {
   const [voiceMode, setVoiceMode] = useState(false);
-  const [language, setLanguage] = useState('ENG');
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const chatEndRef = useRef(null);
 
+  const isHindi = selectedLanguage === 'Hindi';
+
   // Suggested Prompts
-  const suggestedPrompts = [
-    "Will it rain tomorrow in Lucknow?",
-    "What is the weather in Mumbai?",
-    "Is it raining in Delhi right now?",
-    "What is the temperature in Kanpur?",
-    "Weather forecast for Bengaluru"
-  ];
+  const suggestedPrompts = isHindi
+    ? [
+        "क्या कल लखनऊ में बारिश होगी?",
+        "मुंबई का मौसम कैसा है?",
+        "क्या दिल्ली में अभी बारिश हो रही है?",
+        "कानपुर में तापमान कितना है?",
+        "बेंगलुरु के मौसम का पूर्वानुमान"
+      ]
+    : [
+        "Will it rain tomorrow in Lucknow?",
+        "What is the weather in Mumbai?",
+        "Is it raining in Delhi right now?",
+        "What is the temperature in Kanpur?",
+        "Weather forecast for Bengaluru"
+      ];
 
   // Conversation Thread
   const [messages, setMessages] = useState([
@@ -46,11 +55,31 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
       id: 1,
       sender: 'ai',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST',
-      text: "Hello! I am WeatherGPT. Ask me any weather question about any location (e.g., 'Will it rain in Mumbai tomorrow?').",
+      text: isHindi
+        ? "नमस्ते! मैं WeatherGPT हूँ। मुझसे किसी भी स्थान के मौसम के बारे में पूछें (जैसे, 'क्या कल मुंबई में बारिश होगी?')"
+        : "Hello! I am WeatherGPT. Ask me any weather question about any location (e.g., 'Will it rain in Mumbai tomorrow?').",
       sources: "Open-Meteo",
       richContent: null
     }
   ]);
+
+  // Update initial message when language changes if only 1 message exists
+  useEffect(() => {
+    if (messages.length === 1 && messages[0].sender === 'ai') {
+      setMessages([
+        {
+          id: 1,
+          sender: 'ai',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST',
+          text: isHindi
+            ? "नमस्ते! मैं WeatherGPT हूँ। मुझसे किसी भी स्थान के मौसम के बारे में पूछें (जैसे, 'क्या कल मुंबई में बारिश होगी?')"
+            : "Hello! I am WeatherGPT. Ask me any weather question about any location (e.g., 'Will it rain in Mumbai tomorrow?').",
+          sources: "Open-Meteo",
+          richContent: null
+        }
+      ]);
+    }
+  }, [selectedLanguage]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -78,7 +107,10 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message: query.trim() })
+        body: JSON.stringify({
+          message: query.trim(),
+          language: selectedLanguage
+        })
       });
 
       if (!response.ok) {
@@ -190,14 +222,9 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
           </button>
 
           {/* Language Toggle Indicator */}
-          <div className="flex items-center gap-1 text-xs text-slate-600 bg-slate-100 px-2.5 py-1.5 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
             <Globe className="w-3.5 h-3.5 text-sky-600" />
-            <button
-              onClick={() => setLanguage(language === 'ENG' ? 'हिंदी' : language === 'हिंदी' ? 'বাংলা' : 'ENG')}
-              className="font-semibold hover:text-sky-600 transition-colors"
-            >
-              {language} (ENG / हिंदी / বাংলা)
-            </button>
+            <span>Language: {selectedLanguage}</span>
           </div>
         </div>
       </div>
@@ -408,7 +435,11 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="Ask WeatherGPT about atmospheric data, crop guidance, travel safety..."
+            placeholder={
+              isHindi
+                ? 'WeatherGPT से मौसम, फसल सलाह या यात्रा सुरक्षा के बारे में पूछें...'
+                : 'Ask WeatherGPT about atmospheric data, crop guidance, travel safety...'
+            }
             className="flex-1 bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 px-2 py-1.5 focus:outline-none"
           />
 
@@ -430,7 +461,7 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
             disabled={!inputText.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-40"
           >
-            <span>Ask AI</span>
+            <span>{isHindi ? 'पूछें' : 'Ask AI'}</span>
             <Send className="w-3.5 h-3.5" />
           </button>
         </form>

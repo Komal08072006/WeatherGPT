@@ -7,7 +7,9 @@ export default function Header({
   onLocationChange,
   onSearch,
   searchError,
-  isLoading
+  isLoading,
+  selectedLanguage,
+  onLanguageChange
 }) {
   const { currentUser, userProfile } = useAuth();
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
@@ -262,12 +264,17 @@ export default function Header({
         {/* Language Selector */}
         <div className="flex items-center gap-1 text-xs text-slate-600 bg-slate-100/80 px-2 py-1 rounded-lg border border-slate-200/60">
           <Globe className="w-3.5 h-3.5 text-slate-400" />
-          <button 
-            onClick={() => setLanguage(language === 'ENG' ? 'हिंदी' : 'ENG')}
-            className="font-medium hover:text-sky-600 transition-colors"
+          <select
+            value={selectedLanguage || 'English'}
+            onChange={(e) => onLanguageChange && onLanguageChange(e.target.value)}
+            className="bg-transparent font-semibold hover:text-sky-600 focus:outline-none cursor-pointer text-xs text-slate-700"
           >
-            {language}
-          </button>
+            <option value="English">ENG (English)</option>
+            <option value="Hindi">हिंदी (Hindi)</option>
+            <option value="Bengali">বাংলা (Bengali)</option>
+            <option value="Tamil">தமிழ் (Tamil)</option>
+            <option value="Marathi">मराठी (Marathi)</option>
+          </select>
         </div>
 
         {/* Profile Avatar (Mobile/Header) */}
