@@ -11,15 +11,15 @@ export default function WeatherMapPage({ currentLocation }) {
           <Map className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Weather Radar & Wind Map</h1>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">Weather Radar & Live Map</h1>
           <p className="text-xs text-slate-500">
-            Real-time Doppler radar reflectivity & atmospheric wind field layers centered over <span className="font-semibold text-slate-700">{currentLocation?.name}</span>.
+            Live rain radar and current conditions map centered over <span className="font-semibold text-slate-700">{currentLocation?.name || 'Selected Location'}</span>.
           </p>
         </div>
       </div>
 
       {/* Weather Map View */}
-      <WeatherMapPreview onOpenFullMap={() => alert('Radar layers refreshed')} />
+      <WeatherMapPreview currentLocation={currentLocation} isFullPage={true} />
     </div>
   );
 }

@@ -3,6 +3,8 @@ import {
   Sparkles,
   Mic,
   MicOff,
+  Volume2,
+  VolumeX,
   Send,
   Globe,
   MapPin,
@@ -21,16 +23,46 @@ import {
   ArrowUpRight,
   Sliders,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 
 export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'English', onNavigateToAlerts }) {
-  const [voiceMode, setVoiceMode] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false); // Voice Output (TTS)
+  const [isListening, setIsListening] = useState(false); // Voice Input (STT)
+  const [voiceInputNotice, setVoiceInputNotice] = useState(null);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [voiceFallbackNotice, setVoiceFallbackNotice] = useState(null);
+
+  const recognitionRef = useRef(null);
   const chatEndRef = useRef(null);
+  const hasShownVoiceFallbackRef = useRef(false);
 
   const isHindi = selectedLanguage === 'Hindi';
+
+  // Load browser voices asynchronously
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        const list = window.speechSynthesis.getVoices();
+        if (list && list.length > 0) {
+          setAvailableVoices(list);
+          console.log('[TTS] Loaded voices:', list.length);
+        }
+      };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  // Cancel speech when Voice Mode turns OFF
+  useEffect(() => {
+    if (!voiceMode && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+  }, [voiceMode]);
 
   // Suggested Prompts
   const suggestedPrompts = isHindi
@@ -86,9 +118,170 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // Speech Recognition (Voice Input) Handler
+  const toggleListening = () => {
+    const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+    if (!SpeechRecognition) {
+      setVoiceInputNotice(
+        isHindi
+          ? 'वॉइस इनपुट इस ब्राउज़र में उपलब्ध नहीं है — कृपया टाइप करें।'
+          : "Voice input is not available in this browser — please type your question instead."
+      );
+      setTimeout(() => setVoiceInputNotice(null), 4000);
+      return;
+    }
+
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = isHindi ? 'hi-IN' : 'en-IN';
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setVoiceInputNotice(null);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map((res) => res[0].transcript)
+          .join('');
+        if (transcript) {
+          setInputText(transcript);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListening(false);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          setVoiceInputNotice(
+            isHindi
+              ? 'माइक अनुमति अस्वीकृत — कृपया ब्राउज़र सेटिंग में अनुमति दें।'
+              : 'Microphone permission denied — please allow mic access in your browser settings.'
+          );
+        } else if (event.error !== 'no-speech') {
+          setVoiceInputNotice(
+            isHindi
+              ? 'आवाज़ नहीं पहचानी जा सकी — कृपया पुनः प्रयास करें।'
+              : 'Could not recognize speech — please try speaking again.'
+          );
+        }
+        setTimeout(() => setVoiceInputNotice(null), 5000);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.warn('Failed to start speech recognition:', err);
+      setIsListening(false);
+      setVoiceInputNotice(
+        isHindi
+          ? 'वॉइस इनपुट प्रारंभ नहीं हो सका — कृपया पुनः प्रयास करें।'
+          : 'Could not start voice input — please try typing.'
+      );
+      setTimeout(() => setVoiceInputNotice(null), 4000);
+    }
+  };
+
+  // Speak AI Answer aloud (Voice Output)
+  const speakText = (textToSpeak) => {
+    console.log('[TTS] speakText called. Voice Mode:', voiceMode, 'Text:', textToSpeak);
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      console.warn('[TTS] speechSynthesis API not supported.');
+      setVoiceInputNotice(
+        isHindi ? 'वॉइस आउटपुट इस ब्राउज़र में उपलब्ध नहीं है।' : 'Voice output is not available in this browser.'
+      );
+      setTimeout(() => setVoiceInputNotice(null), 4000);
+      return;
+    }
+
+    try {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+      window.speechSynthesis.cancel();
+
+      if (!textToSpeak) return;
+      const cleanText = textToSpeak.replace(/[*_#`]/g, '').trim();
+      if (!cleanText) return;
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      const targetLang = isHindi ? 'hi-IN' : 'en-IN';
+      utterance.lang = targetLang;
+
+      const voicesList = availableVoices.length > 0 ? availableVoices : (window.speechSynthesis.getVoices() || []);
+      const matchingVoice = voicesList.find(
+        (v) => v.lang === targetLang || v.lang.startsWith(targetLang.split('-')[0])
+      );
+
+      if (matchingVoice) {
+        utterance.voice = matchingVoice;
+        console.log('[TTS] Selected voice:', matchingVoice.name, matchingVoice.lang);
+      } else {
+        console.log('[TTS] No matching voice for', targetLang, '- using browser default voice.');
+        if (selectedLanguage !== 'English') {
+          if (!hasShownVoiceFallbackRef.current) {
+            hasShownVoiceFallbackRef.current = true;
+            setVoiceFallbackNotice(
+              isHindi
+                ? "Hindi voice isn't installed on this device — text is shown below instead"
+                : `${selectedLanguage} voice isn't installed on this device — text is shown below instead`
+            );
+          }
+          return;
+        }
+      }
+
+      utterance.onstart = () => {
+        console.log('[TTS] Audio playback started successfully.');
+      };
+
+      utterance.onerror = (err) => {
+        console.warn('[TTS] SpeechSynthesis error:', err);
+        setVoiceInputNotice(
+          isHindi ? 'वॉइस आउटपुट काम नहीं कर सका।' : 'Voice output failed in this browser.'
+        );
+        setTimeout(() => setVoiceInputNotice(null), 4000);
+      };
+
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn('[TTS] Exception in speakText:', err);
+      setVoiceInputNotice(
+        isHindi ? 'वॉइस आउटपुट उपलब्ध नहीं है।' : 'Voice output is not available in this browser.'
+      );
+      setTimeout(() => setVoiceInputNotice(null), 4000);
+    }
+  };
+
   const handleSendMessage = async (textToSend) => {
+    // Cancel any ongoing speech when user sends a new message
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+
     const query = textToSend || inputText;
     if (!query.trim() || isTyping) return;
+
+    // Stop speech recognition if active
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
 
     const userMsg = {
       id: Date.now(),
@@ -119,6 +312,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
       }
 
       const data = await response.json();
+      const answerText = data.simple_answer || 'No answer provided.';
 
       let miniForecast = null;
       if (data.raw_data && data.raw_data.weather && data.raw_data.weather.current) {
@@ -163,12 +357,17 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
         id: Date.now() + 1,
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST',
-        text: data.simple_answer || 'No answer provided.',
+        text: answerText,
         sources: `Open-Meteo • ${data.location_used || 'Live Data'}`,
         richContent: miniForecast && miniForecast.length > 0 ? { miniForecast } : null
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+
+      // Read AI answer aloud if Voice Mode is ON
+      if (voiceMode) {
+        speakText(answerText);
+      }
     } catch (err) {
       const errorMsg = {
         id: Date.now() + 1,
@@ -183,7 +382,6 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
       setIsTyping(false);
     }
   };
-
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-6xl mx-auto w-full px-2 sm:px-4 py-2">
@@ -206,26 +404,66 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
           </div>
         </div>
 
-        {/* Controls: Voice Toggle & Multi-lingual indicator */}
-        <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
-          {/* Voice Mode Toggle */}
-          <button
-            onClick={() => setVoiceMode(!voiceMode)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
-              voiceMode
-                ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
-            }`}
-          >
-            {voiceMode ? <Mic className="w-3.5 h-3.5 animate-pulse" /> : <MicOff className="w-3.5 h-3.5 text-slate-400" />}
-            <span>Voice Mode: {voiceMode ? 'ON' : 'OFF'}</span>
-          </button>
+        {/* Controls: Voice Mode Toggle & Language Indicator */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0 self-end sm:self-center">
+          <div className="flex items-center gap-2.5">
+            {/* Voice Mode Toggle (Voice Output) */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextState = !voiceMode;
+                setVoiceMode(nextState);
+                if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                  if (nextState) {
+                    console.log('[TTS] Voice Mode turned ON via user click. Warming up audio context.');
+                    try {
+                      if (window.speechSynthesis.paused) {
+                        window.speechSynthesis.resume();
+                      }
+                      window.speechSynthesis.cancel();
+                      const warmUp = new SpeechSynthesisUtterance('');
+                      window.speechSynthesis.speak(warmUp);
+                    } catch (e) {
+                      console.warn('[TTS] Audio warmup error:', e);
+                    }
+                  } else {
+                    window.speechSynthesis.cancel();
+                  }
+                }
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                voiceMode
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
+                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70'
+              }`}
+              title="Voice Mode: reads AI answers aloud when ON"
+            >
+              {voiceMode ? <Volume2 className="w-3.5 h-3.5 animate-pulse" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+              <span>Voice Mode: {voiceMode ? 'ON' : 'OFF'}</span>
+            </button>
 
-          {/* Language Toggle Indicator */}
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
-            <Globe className="w-3.5 h-3.5 text-sky-600" />
-            <span>Language: {selectedLanguage}</span>
+            {/* Language Indicator */}
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
+              <Globe className="w-3.5 h-3.5 text-sky-600" />
+              <span>Language: {selectedLanguage}</span>
+            </div>
           </div>
+
+          {/* Dismissible voice fallback notice near Voice Mode toggle */}
+          {voiceFallbackNotice && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-2.5 py-1 rounded-xl text-[11px] font-medium flex items-center gap-1.5 shadow-2xs">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>{voiceFallbackNotice}</span>
+              <button
+                type="button"
+                onClick={() => setVoiceFallbackNotice(null)}
+                className="text-amber-700 hover:text-amber-900 font-bold ml-1 cursor-pointer"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -257,25 +495,6 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
                 {/* Rich Sub-Content for AI Messages */}
                 {msg.sender === 'ai' && msg.richContent && (
                   <div className="mt-3.5 space-y-3 pt-3 border-t border-slate-100">
-                    {/* Practical Tips Highlight Box */}
-                    {msg.richContent.tips && msg.richContent.tips.length > 0 && (
-                      <div className="space-y-2">
-                        {msg.richContent.tips.map((tip, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-3 rounded-xl border text-xs ${
-                              tip.type === 'agro'
-                                ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-950'
-                                : 'bg-blue-50/80 border-blue-200/80 text-blue-950'
-                            }`}
-                          >
-                            <div className="font-bold mb-0.5">{tip.title}</div>
-                            <div className="text-[11px] leading-relaxed opacity-90">{tip.content}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
                     {/* Embedded Mini Forecast Cards */}
                     {msg.richContent.miniForecast && (
                       <div>
@@ -299,59 +518,6 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
                             );
                           })}
                         </div>
-                      </div>
-                    )}
-
-                    {/* Alert Confirmation Card */}
-                    {msg.richContent.alertConfirmation && (
-                      <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 text-xs">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <div className="flex items-center gap-1.5 font-bold text-amber-950">
-                            <TriangleAlert className="w-4 h-4 text-amber-600" />
-                            <span>{msg.richContent.alertConfirmation.title}</span>
-                          </div>
-                          <span className="text-[9px] font-bold bg-amber-500 text-white px-2 py-0.5 rounded-full">
-                            ACTIVE
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-amber-900 mb-2">
-                          {msg.richContent.alertConfirmation.threshold} • {msg.richContent.alertConfirmation.status}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          {msg.richContent.alertConfirmation.actions.map((act, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                if (act.action === 'view_alerts' && onNavigateToAlerts) {
-                                  onNavigateToAlerts();
-                                } else {
-                                  alert(`Action: ${act.label}`);
-                                }
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 font-semibold text-[10px] hover:bg-amber-100 transition-colors shadow-2xs"
-                            >
-                              {act.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Climate Trend Card */}
-                    {msg.richContent.climateTrend && (
-                      <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs flex items-center justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                            <TrendingUp className="w-3 h-3 text-sky-600" />
-                            <span>{msg.richContent.climateTrend.title}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-600 mt-0.5">
-                            {msg.richContent.climateTrend.description}
-                          </p>
-                        </div>
-                        <span className="text-xs font-extrabold text-sky-700 bg-sky-100 border border-sky-200 px-2.5 py-1 rounded-xl shrink-0">
-                          {msg.richContent.climateTrend.stat}
-                        </span>
                       </div>
                     )}
                   </div>
@@ -415,6 +581,23 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
         </div>
       </div>
 
+      {/* Inline Listening / Error Notice Banner */}
+      {(isListening || voiceInputNotice) && (
+        <div className="mb-2 shrink-0">
+          {isListening ? (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 shadow-2xs animate-pulse">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              <span>{isHindi ? 'सुन रहा हूँ... अपनी बात बोलें' : 'Listening... speak your question now'}</span>
+            </div>
+          ) : (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-xl text-xs font-medium flex items-center gap-2 shadow-2xs">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{voiceInputNotice}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 4. Bottom Input Bar */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-2 shadow-xs shrink-0">
         <form
@@ -443,14 +626,16 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
             className="flex-1 bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 px-2 py-1.5 focus:outline-none"
           />
 
-          {/* Mic Button */}
+          {/* Mic Button (Voice Input) */}
           <button
             type="button"
-            onClick={() => setVoiceMode(!voiceMode)}
-            className={`p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors ${
-              voiceMode ? 'text-amber-500 bg-amber-50' : ''
+            onClick={toggleListening}
+            className={`p-2 rounded-xl transition-all ${
+              isListening
+                ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30 border border-rose-600 animate-pulse'
+                : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
             }`}
-            title="Voice Input"
+            title={isListening ? 'Listening... (tap to stop)' : 'Voice input (tap to speak)'}
           >
             <Mic className="w-4 h-4" />
           </button>

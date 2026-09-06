@@ -1,17 +1,228 @@
-import React, { useState } from 'react';
-import { Map, Layers, Maximize2, Radio, Compass, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Map, Layers, Radio, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 
-export default function WeatherMapPreview({ onOpenFullMap }) {
-  const [activeLayer, setActiveLayer] = useState('rain');
+export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFullPage = false }) {
+  const mapContainerRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+  const radarLayerRef = useRef(null);
+
+  const [activeLayer, setActiveLayer] = useState('rain'); // 'rain' | 'base'
+  const [isLoading, setIsLoading] = useState(true);
+  const [radarError, setRadarError] = useState(false);
+  const [radarTime, setRadarTime] = useState('');
+  const [weatherData, setWeatherData] = useState(null);
+
+  // Extract coordinates and location name from currentLocation prop
+  const lat = currentLocation?.latitude != null ? Number(currentLocation.latitude) : 26.8467;
+  const lon = currentLocation?.longitude != null ? Number(currentLocation.longitude) : 80.9462;
+  const locationName = currentLocation?.name || 'Lucknow, Uttar Pradesh';
+
+  // Fetch current weather for marker popup from /weather endpoint
+  useEffect(() => {
+    let isMounted = true;
+    const fetchMarkerWeather = async () => {
+      try {
+        const url = (currentLocation?.latitude != null && currentLocation?.longitude != null)
+          ? `http://localhost:8000/weather?latitude=${lat}&longitude=${lon}`
+          : `http://localhost:8000/weather?location=${encodeURIComponent(currentLocation?.searchName || currentLocation?.name || 'Lucknow')}`;
+
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            const current = data.weather?.current || {};
+            setWeatherData({
+              temp: current.temperature_2m != null ? Math.round(current.temperature_2m) : null,
+              humidity: current.relative_humidity_2m != null ? current.relative_humidity_2m : null,
+              wind: current.wind_speed_10m != null ? current.wind_speed_10m : null,
+              location: data.location || locationName,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Weather fetch for map marker failed:', err);
+      }
+    };
+
+    fetchMarkerWeather();
+    return () => { isMounted = false; };
+  }, [lat, lon, locationName, currentLocation]);
+
+  // Initialize Leaflet map
+  useEffect(() => {
+    if (!mapContainerRef.current) return;
+
+    if (!mapInstanceRef.current) {
+      const map = L.map(mapContainerRef.current, {
+        center: [lat, lon],
+        zoom: 6,
+        zoomControl: true,
+      });
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
+      mapInstanceRef.current = map;
+    } else {
+      mapInstanceRef.current.setView([lat, lon], mapInstanceRef.current.getZoom() || 6);
+    }
+
+    // Invalidate size after mount to prevent render artifacts
+    const timer = setTimeout(() => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.invalidateSize();
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [lat, lon]);
+
+  // Fetch RainViewer API radar timestamp and create tile layer
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRainViewerRadar = async () => {
+      setIsLoading(true);
+      setRadarError(false);
+
+      try {
+        const res = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+        if (!res.ok) throw new Error('RainViewer API request failed');
+
+        const data = await res.json();
+        const host = data.host || 'https://tilecache.rainviewer.com';
+        const pastFrames = data.radar?.past || [];
+
+        if (pastFrames.length === 0) throw new Error('No radar data available');
+
+        const latestFrame = pastFrames[pastFrames.length - 1];
+        const tileUrlPattern = `${host}${latestFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+        if (latestFrame.time) {
+          const dateObj = new Date(latestFrame.time * 1000);
+          setRadarTime(dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+
+        if (isMounted && mapInstanceRef.current) {
+          if (radarLayerRef.current && mapInstanceRef.current.hasLayer(radarLayerRef.current)) {
+            mapInstanceRef.current.removeLayer(radarLayerRef.current);
+          }
+
+          const radarTileLayer = L.tileLayer(tileUrlPattern, {
+            opacity: 0.65,
+            tileSize: 256,
+            minZoom: 1,
+            maxNativeZoom: 6,
+            maxZoom: 7,
+            zIndex: 10,
+          });
+
+          radarLayerRef.current = radarTileLayer;
+
+          if (activeLayer === 'rain') {
+            radarTileLayer.addTo(mapInstanceRef.current);
+          }
+        }
+      } catch (err) {
+        console.warn('RainViewer radar overlay error:', err);
+        if (isMounted) {
+          setRadarError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadRainViewerRadar();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Handle active layer toggle (Rain Radar vs Base Map)
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (activeLayer === 'rain' && radarLayerRef.current && !radarError) {
+      if (!map.hasLayer(radarLayerRef.current)) {
+        radarLayerRef.current.addTo(map);
+      }
+    } else if (activeLayer === 'base' && radarLayerRef.current) {
+      if (map.hasLayer(radarLayerRef.current)) {
+        map.removeLayer(radarLayerRef.current);
+      }
+    }
+  }, [activeLayer, radarError]);
+
+  // Update Marker & Popup content at exact coordinates
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (markerRef.current) {
+      map.removeLayer(markerRef.current);
+    }
+
+    const tempText = weatherData?.temp != null ? `${weatherData.temp}°C` : '--°C';
+    const cityLabel = locationName.split(',')[0].trim();
+
+    const popupHTML = `
+      <div style="font-family: system-ui, -apple-system, sans-serif; padding: 4px 6px; text-align: center; min-width: 130px;">
+        <strong style="font-size: 13px; color: #0f172a; display: block; margin-bottom: 2px;">${locationName}</strong>
+        <div style="font-size: 18px; font-weight: 800; color: #0284c7; margin: 2px 0;">${tempText}</div>
+        ${weatherData?.humidity != null ? `<div style="font-size: 11px; color: #64748b;">Humidity: ${weatherData.humidity}%</div>` : ''}
+        ${weatherData?.wind != null ? `<div style="font-size: 11px; color: #64748b;">Wind: ${weatherData.wind} km/h</div>` : ''}
+      </div>
+    `;
+
+    // DivIcon badge
+    const customIcon = L.divIcon({
+      className: 'custom-weather-marker',
+      html: `
+        <div style="
+          background: #0284c7;
+          color: white;
+          font-weight: 700;
+          font-size: 11px;
+          padding: 4px 10px;
+          border-radius: 20px;
+          border: 2px solid white;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+          white-space: nowrap;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transform: translate(-50%, -100%);
+          cursor: pointer;
+        ">
+          <span>📍 ${cityLabel}</span>
+          <span style="background: rgba(255,255,255,0.25); padding: 1px 6px; border-radius: 10px;">${tempText}</span>
+        </div>
+      `,
+      iconSize: [0, 0],
+    });
+
+    const marker = L.marker([lat, lon], { icon: customIcon }).addTo(map);
+    marker.bindPopup(popupHTML);
+    marker.openPopup();
+    markerRef.current = marker;
+  }, [lat, lon, locationName, weatherData]);
 
   const layers = [
-    { id: 'temp', label: 'Temp' },
     { id: 'rain', label: 'Rain Radar' },
-    { id: 'wind', label: 'Wind Vectors' }
+    { id: 'base', label: 'Base Map' },
   ];
 
+  const mapHeightClass = isFullPage ? 'h-[500px] sm:h-[560px]' : 'h-64 sm:h-72';
+
   return (
-    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs mb-6 flex flex-col justify-between">
+    <div className="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col justify-between">
       {/* Header & Controls */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
@@ -19,7 +230,7 @@ export default function WeatherMapPreview({ onOpenFullMap }) {
             <Map className="w-4 h-4" />
           </div>
           <h3 className="text-base font-bold text-slate-800 tracking-tight">
-            Central UP Doppler Radar & Wind Field
+            Live Rain Radar & Interactive Map
           </h3>
         </div>
 
@@ -29,7 +240,7 @@ export default function WeatherMapPreview({ onOpenFullMap }) {
             <button
               key={layer.id}
               onClick={() => setActiveLayer(layer.id)}
-              className={`px-2 py-1 rounded-lg font-medium transition-all ${
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
                 activeLayer === layer.id
                   ? 'bg-white text-sky-700 shadow-2xs font-semibold'
                   : 'text-slate-500 hover:text-slate-800'
@@ -41,64 +252,57 @@ export default function WeatherMapPreview({ onOpenFullMap }) {
         </div>
       </div>
 
-      {/* Map Interactive Visualization Frame (Ready for Leaflet/OSM) */}
-      <div className="relative w-full h-52 sm:h-56 bg-slate-900 rounded-xl overflow-hidden border border-slate-200 group">
-        {/* Geographic Simulated Map Tiles */}
-        <div 
-          className="absolute inset-0 bg-cover bg-center opacity-85 transition-transform duration-700 group-hover:scale-105"
-          style={{
-            backgroundImage: `radial-gradient(circle at 45% 55%, rgba(14, 165, 233, 0.45) 0%, rgba(59, 130, 246, 0.25) 30%, transparent 65%), 
-                              linear-gradient(to bottom, #1e293b, #0f172a)`
-          }}
-        >
-          {/* Grid lines simulating GIS spatial coords */}
-          <div className="w-full h-full opacity-10 bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)] bg-[size:32px_32px]"></div>
-        </div>
-
-        {/* Doppler Pulse Animation Radar Overlay */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 border border-sky-400/40 rounded-full animate-ping pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-sky-300/60 rounded-full pointer-events-none"></div>
-
-        {/* Station Map Pins */}
-        {/* Lucknow Station Pin */}
-        <div className="absolute top-[48%] left-[46%] -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 cursor-pointer">
-          <div className="flex items-center gap-1 bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full shadow-md border border-sky-300 text-[10px] font-bold text-slate-900 animate-bounce">
-            <Radio className="w-2.5 h-2.5 text-sky-600 animate-pulse" />
-            <span>LKO Radar Lucknow 29°C</span>
+      {/* Leaflet Map Interactive Container */}
+      <div className={`relative w-full ${mapHeightClass} bg-slate-900 rounded-xl overflow-hidden border border-slate-200 group`}>
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 z-20 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-2">
+            <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
+            <span className="text-xs font-medium">Loading map & radar tiles...</span>
           </div>
-          <div className="w-2.5 h-2.5 bg-sky-500 rounded-full ring-4 ring-sky-300/50 mt-0.5"></div>
-        </div>
+        )}
 
-        {/* Kanpur Pin */}
-        <div className="absolute top-[65%] left-[30%] flex items-center gap-1 bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-full border border-slate-700 text-[9px] font-semibold">
-          <span>Kanpur 31°C</span>
-        </div>
+        {/* Radar Error Notice */}
+        {radarError && activeLayer === 'rain' && (
+          <div className="absolute top-3 left-3 right-3 z-20 bg-amber-500/90 text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 shadow-md backdrop-blur-xs">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Live radar overlay temporarily unavailable. Displaying base map.</span>
+          </div>
+        )}
 
-        {/* Ayodhya Pin */}
-        <div className="absolute top-[35%] left-[70%] flex items-center gap-1 bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded-full border border-slate-700 text-[9px] font-semibold">
-          <span>Ayodhya 28°C</span>
-        </div>
+        {/* Leaflet Map Element */}
+        <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* Bottom Bar inside Map */}
-        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] bg-slate-950/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-slate-300">
+        {/* Bottom Status Overlay Bar */}
+        <div className="absolute bottom-2 left-2 right-2 z-10 flex items-center justify-between text-[10px] bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-slate-300">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-sky-400"></span>
-            <span>LKO-DDR Doppler Reflectivity (dBZ)</span>
+            <span className={`w-2 h-2 rounded-full ${activeLayer === 'rain' && !radarError ? 'bg-emerald-400 animate-pulse' : 'bg-sky-400'}`} />
+            <span>
+              {activeLayer === 'rain' && !radarError
+                ? `Live Rain Radar (RainViewer${radarTime ? ` • ${radarTime}` : ''})`
+                : 'OpenStreetMap Base Layer'}
+            </span>
           </div>
-          <span className="text-slate-400 font-mono">26.8467° N, 80.9462° E</span>
+          <span className="text-slate-400 font-mono">
+            {lat.toFixed(4)}° N, {lon.toFixed(4)}° E
+          </span>
         </div>
       </div>
 
-      {/* Footer Action */}
-      <div className="mt-3 pt-2 flex items-center justify-between">
-        <span className="text-[11px] text-slate-400">Live IMD Doppler & Meteorological Layer</span>
-        <button
-          onClick={onOpenFullMap}
-          className="text-xs font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 hover:translate-x-0.5 transition-transform"
-        >
-          <span>Open Full Map</span>
-          <ArrowRight className="w-3.5 h-3.5" />
-        </button>
+      {/* Footer Action / Info */}
+      <div className="mt-3 pt-2 flex items-center justify-between text-xs">
+        <span className="text-[11px] text-slate-400">
+          Live radar data: RainViewer • Base map: OpenStreetMap
+        </span>
+        {onOpenFullMap && (
+          <button
+            onClick={onOpenFullMap}
+            className="font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 hover:translate-x-0.5 transition-transform"
+          >
+            <span>Full Map View</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   );

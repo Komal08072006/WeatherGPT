@@ -331,6 +331,7 @@ export default function DashboardPage({
               </div>
               <div>
                 <WeatherMapPreview
+                  currentLocation={currentLocation}
                   onOpenFullMap={() => onNavigate('map')}
                 />
               </div>
