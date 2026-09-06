@@ -18,6 +18,7 @@ import SettingsPage from './pages/SettingsPage';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Loader2, Cloud } from 'lucide-react';
+import { API_BASE_URL } from './config/api';
 
 import {
   mockLocations,
@@ -78,14 +79,14 @@ function ExistingDashboard() {
     try {
       let url = '';
       if (typeof locationQuery === 'object' && locationQuery.latitude != null && locationQuery.longitude != null) {
-        url = `http://localhost:8000/weather?latitude=${locationQuery.latitude}&longitude=${locationQuery.longitude}`;
+        url = `${API_BASE_URL}/weather?latitude=${locationQuery.latitude}&longitude=${locationQuery.longitude}`;
       } else {
         if (typeof locationQuery === 'string' && !locationQuery.trim()) {
           setIsSearchLoading(false);
           return;
         }
         const cleanSearchName = getCleanLocationName(locationQuery);
-        url = `http://localhost:8000/weather?location=${encodeURIComponent(cleanSearchName)}`;
+        url = `${API_BASE_URL}/weather?location=${encodeURIComponent(cleanSearchName)}`;
       }
 
       const response = await fetch(url);

@@ -8,6 +8,7 @@ import WeatherMapPreview from '../components/map/WeatherMapPreview';
 import FarmerAdvisory from '../components/agriculture/FarmerAdvisory';
 import ClimateInsight from '../components/climate/ClimateInsight';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 export default function DashboardPage({
   currentLocation,
@@ -34,8 +35,8 @@ export default function DashboardPage({
     setError(null);
     try {
       const url = (currentLocation?.latitude != null && currentLocation?.longitude != null)
-        ? `http://localhost:8000/weather?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
-        : `http://localhost:8000/weather?location=${encodeURIComponent(searchLocation)}`;
+        ? `${API_BASE_URL}/weather?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
+        : `${API_BASE_URL}/weather?location=${encodeURIComponent(searchLocation)}`;
 
       const res = await fetch(url);
       if (!res.ok) {

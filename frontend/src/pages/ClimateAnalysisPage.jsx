@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ClimateInsight from '../components/climate/ClimateInsight';
 import { TrendingUp, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 export default function ClimateAnalysisPage({ currentLocation }) {
   const [climateData, setClimateData] = useState(null);
@@ -16,9 +17,9 @@ export default function ClimateAnalysisPage({ currentLocation }) {
     try {
       let url = '';
       if (currentLocation?.latitude != null && currentLocation?.longitude != null) {
-        url = `http://localhost:8000/climate-analysis?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`;
+        url = `${API_BASE_URL}/climate-analysis?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`;
       } else {
-        url = `http://localhost:8000/climate-analysis?location=${encodeURIComponent(searchLocation)}`;
+        url = `${API_BASE_URL}/climate-analysis?location=${encodeURIComponent(searchLocation)}`;
       }
 
       const res = await fetch(url);

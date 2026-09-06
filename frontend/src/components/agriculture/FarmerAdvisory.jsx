@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sprout, CheckCircle2, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
 
 export default function FarmerAdvisory({ advisoryData, currentLocation, selectedLanguage, onViewDetailed }) {
   const [loading, setLoading] = useState(false);
@@ -23,10 +24,10 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, selected
     try {
       let url = '';
       if (currentLocation && typeof currentLocation === 'object' && currentLocation.latitude != null && currentLocation.longitude != null) {
-        url = `http://localhost:8000/farmer-advisory?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&language=${encodeURIComponent(lang)}`;
+        url = `${API_BASE_URL}/farmer-advisory?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&language=${encodeURIComponent(lang)}`;
       } else {
         const cleanName = getCleanLocationName(currentLocation);
-        url = `http://localhost:8000/farmer-advisory?location=${encodeURIComponent(cleanName)}&language=${encodeURIComponent(lang)}`;
+        url = `${API_BASE_URL}/farmer-advisory?location=${encodeURIComponent(cleanName)}&language=${encodeURIComponent(lang)}`;
       }
 
       const response = await fetch(url);

@@ -26,6 +26,8 @@ import {
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
+
 
 export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'English', onNavigateToAlerts }) {
   const [voiceMode, setVoiceMode] = useState(false); // Voice Output (TTS)
@@ -295,7 +297,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
     setIsTyping(true);
 
     try {
-      const response = await fetch('http://localhost:8000/chat', {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Map, Layers, Radio, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '../../config/api';
 
 export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFullPage = false }) {
   const mapContainerRef = useRef(null);
@@ -26,8 +27,8 @@ export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFu
     const fetchMarkerWeather = async () => {
       try {
         const url = (currentLocation?.latitude != null && currentLocation?.longitude != null)
-          ? `http://localhost:8000/weather?latitude=${lat}&longitude=${lon}`
-          : `http://localhost:8000/weather?location=${encodeURIComponent(currentLocation?.searchName || currentLocation?.name || 'Lucknow')}`;
+          ? `${API_BASE_URL}/weather?latitude=${lat}&longitude=${lon}`
+          : `${API_BASE_URL}/weather?location=${encodeURIComponent(currentLocation?.searchName || currentLocation?.name || 'Lucknow')}`;
 
         const res = await fetch(url);
         if (res.ok) {

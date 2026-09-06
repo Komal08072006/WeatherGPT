@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import WeatherAlert from '../components/alerts/WeatherAlert';
 import { TriangleAlert, ShieldCheck, CheckCircle2, Share2, FileText, Loader2 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 
 export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
   const [alertState, setAlertState] = useState(null);
@@ -16,8 +17,8 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
     setError(null);
 
     const alertUrl = (currentLocation?.latitude != null && currentLocation?.longitude != null)
-      ? `http://localhost:8000/alerts?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
-      : `http://localhost:8000/alerts?location=${encodeURIComponent(searchLocation)}`;
+      ? `${API_BASE_URL}/alerts?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
+      : `${API_BASE_URL}/alerts?location=${encodeURIComponent(searchLocation)}`;
 
     fetch(alertUrl)
       .then((res) => {

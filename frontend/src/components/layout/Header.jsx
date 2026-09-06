@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Navigation, Search, Bell, ChevronDown, Globe, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import EditProfileModal from './EditProfileModal';
+import { API_BASE_URL } from '../../config/api';
 
 export default function Header({
   currentLocation,
@@ -43,7 +44,7 @@ export default function Header({
 
     const timer = setTimeout(() => {
       setIsSearchingSuggestions(true);
-      fetch(`http://localhost:8000/geocode?query=${encodeURIComponent(searchTerm.trim())}`)
+      fetch(`${API_BASE_URL}/geocode?query=${encodeURIComponent(searchTerm.trim())}`)
         .then((res) => (res.ok ? res.json() : []))
         .then((data) => {
           setSuggestions(data || []);
