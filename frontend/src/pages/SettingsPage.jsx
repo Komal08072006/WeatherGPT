@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, MapPin, Bell, Globe, Radio, Sun, Moon } from 'lucide-react';
+import { Settings, MapPin, Bell, Globe, Sun, Moon } from 'lucide-react';
 
 export default function SettingsPage({
   currentLocation,
@@ -18,7 +18,7 @@ export default function SettingsPage({
         <div>
           <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Platform Settings</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure telemetry sources, alert thresholds, appearance, and language preferences for WeatherGPT.
+            Configure alert threshold info, appearance, and language preferences for WeatherGPT.
           </p>
         </div>
       </div>
@@ -34,23 +34,6 @@ export default function SettingsPage({
               <div className="text-xs text-slate-500 dark:text-slate-400">{currentLocation?.name || 'Lucknow, Uttar Pradesh'}</div>
             </div>
           </div>
-          <span className="text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/80 px-3 py-1 rounded-xl border border-sky-200 dark:border-sky-800/60">
-            {currentLocation?.searchName || 'Amausi (VILK)'}
-          </span>
-        </div>
-
-        {/* Doppler Stream */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <Radio className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Doppler Telemetry Stream</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">IMD Doppler Reflectivity (dBZ) &amp; Open-Meteo Radar</div>
-            </div>
-          </div>
-          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/80 px-3 py-1 rounded-xl border border-emerald-200 dark:border-emerald-800/60">
-            Live Connected
-          </span>
         </div>
 
         {/* Alert Triggers */}
@@ -59,11 +42,13 @@ export default function SettingsPage({
             <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             <div>
               <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Convective Storm Alert Triggers</div>
-              <div className="text-xs text-slate-500 dark:text-slate-400">Notify when precipitation probability &gt; 50%</div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Fixed backend thresholds: Orange (&gt;15mm rain or &gt;70% prob), Red (&gt;30mm rain or &gt;90% prob)
+              </div>
             </div>
           </div>
           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-3 py-1 rounded-xl border border-amber-200 dark:border-amber-800/60">
-            Enabled
+            Active (Orange: 70%+, Red: 90%+)
           </span>
         </div>
 
