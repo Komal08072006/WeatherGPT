@@ -49,17 +49,17 @@ export default function Sidebar({ activeTab, setActiveTab }) {
 
   return (
     <>
-      <aside className="hidden md:flex flex-col w-52 lg:w-56 bg-white border-r border-slate-200/80 min-h-screen sticky top-0 h-screen z-30 select-none">
+      <aside className="hidden md:flex flex-col w-52 lg:w-56 bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800 min-h-screen sticky top-0 h-screen z-30 select-none">
         {/* Brand Header */}
         <div 
           onClick={() => navigate('/')}
-          className="p-4 flex items-center gap-2.5 border-b border-slate-100 cursor-pointer hover:opacity-85 transition-opacity"
+          className="p-4 flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 cursor-pointer hover:opacity-85 transition-opacity"
         >
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-sm shadow-sky-500/30">
             <Cloud className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className="font-bold text-slate-800 text-lg tracking-tight">
-            Weather<span className="text-sky-600">GPT</span>
+          <span className="font-bold text-slate-800 dark:text-slate-100 text-lg tracking-tight">
+            Weather<span className="text-sky-600 dark:text-sky-400">GPT</span>
           </span>
         </div>
 
@@ -74,11 +74,11 @@ export default function Sidebar({ activeTab, setActiveTab }) {
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-150 font-medium cursor-pointer ${
                   isActive
-                    ? 'bg-sky-50 text-sky-600 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    ? 'bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 font-semibold shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-sky-600 stroke-[2.2]' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'text-sky-600 dark:text-sky-400 stroke-[2.2]' : 'text-slate-400 dark:text-slate-500'}`} />
                 <span>{item.label}</span>
               </button>
             );
@@ -86,13 +86,13 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         </nav>
 
         {/* Bottom Footer Section */}
-        <div className="p-3 border-t border-slate-100 bg-slate-50/50 space-y-2">
+        <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 space-y-2">
           <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-2">
-              <LogOut className="w-3.5 h-3.5 text-red-500" />
+              <LogOut className="w-3.5 h-3.5 text-red-500 dark:text-red-400" />
               <span>Sign Out</span>
             </div>
           </button>
@@ -101,9 +101,9 @@ export default function Sidebar({ activeTab, setActiveTab }) {
           <div 
             onClick={() => setIsEditProfileOpen(true)}
             title="Click to Edit Profile"
-            className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-200/60 shadow-xs hover:border-sky-300 hover:bg-sky-50/60 transition-all cursor-pointer group"
+            className="flex items-center gap-2.5 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xs hover:border-sky-300 dark:hover:border-sky-700 hover:bg-sky-50/60 dark:hover:bg-slate-800 transition-all cursor-pointer group"
           >
-            <div className="w-8 h-8 rounded-full bg-sky-100 border border-sky-300 flex items-center justify-center font-bold text-xs text-sky-700 overflow-hidden shrink-0 relative">
+            <div className="w-8 h-8 rounded-full bg-sky-100 dark:bg-sky-950 border border-sky-300 dark:border-sky-700 flex items-center justify-center font-bold text-xs text-sky-700 dark:text-sky-300 overflow-hidden shrink-0 relative">
               {photoURL && !imgError ? (
                 <img 
                   src={photoURL} 
@@ -116,10 +116,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-slate-800 truncate group-hover:text-sky-700 transition-colors">{displayName}</p>
-              <p className="text-[10px] text-slate-400 truncate">{displayEmail}</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-sky-700 dark:group-hover:text-sky-400 transition-colors">{displayName}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-400 truncate">{displayEmail}</p>
             </div>
-            <Pencil className="w-3.5 h-3.5 text-slate-400 group-hover:text-sky-600 transition-colors shrink-0" />
+            <Pencil className="w-3.5 h-3.5 text-slate-400 dark:text-slate-400 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors shrink-0" />
           </div>
         </div>
       </aside>

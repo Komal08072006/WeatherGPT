@@ -29,6 +29,20 @@ html.dark body,
   color: #f8fafc !important;
 }
 
+.dark .bg-white\/95,
+.dark .bg-white\/90,
+.dark .bg-white\/80,
+.dark .bg-white\/70,
+.dark .bg-white\/60,
+.dark .bg-white\/50,
+.dark .bg-white\/40,
+.dark .bg-white\/30,
+.dark .bg-white\/20,
+.dark .bg-white\/10 {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  color: #f8fafc !important;
+}
+
 .dark .bg-\[\#f8fafc\] {
   background-color: #090d16 !important;
 }
@@ -47,6 +61,38 @@ html.dark body,
 .dark .bg-slate-200\/80,
 .dark .bg-slate-200 {
   background-color: #334155 !important;
+}
+
+.dark .bg-sky-50\/90,
+.dark .bg-sky-50\/80,
+.dark .bg-sky-50\/70,
+.dark .bg-sky-50\/50,
+.dark .bg-sky-50 {
+  background-color: rgba(12, 74, 110, 0.4) !important;
+  color: #f0f9ff !important;
+}
+
+.dark .bg-amber-50\/90,
+.dark .bg-amber-50\/80,
+.dark .bg-amber-50\/50,
+.dark .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.4) !important;
+  color: #fef3c7 !important;
+}
+
+.dark .bg-emerald-50\/90,
+.dark .bg-emerald-50\/80,
+.dark .bg-emerald-50\/70,
+.dark .bg-emerald-50\/50,
+.dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.4) !important;
+  color: #ecfdf5 !important;
+}
+
+.dark .bg-red-50\/80,
+.dark .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.4) !important;
+  color: #fef2f2 !important;
 }
 
 /* Header & Navigation Overrides */
@@ -100,6 +146,17 @@ html.dark body,
 .dark option {
   background-color: #0f172a !important;
   color: #f8fafc !important;
+}
+
+/* Recharts Dark Mode Tooltip Overrides */
+.dark .recharts-default-tooltip {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+.dark .recharts-tooltip-item-list li {
+  color: #cbd5e1 !important;
 }
 
 /* Custom Scrollbar */
