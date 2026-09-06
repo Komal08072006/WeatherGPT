@@ -33,21 +33,33 @@ export default function DashboardPage({
   const fetchWeather = async () => {
     setLoading(true);
     setError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
     try {
       const url = (currentLocation?.latitude != null && currentLocation?.longitude != null)
         ? `${API_BASE_URL}/weather?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
         : `${API_BASE_URL}/weather?location=${encodeURIComponent(searchLocation)}`;
 
-      const res = await fetch(url);
+      console.log('[DashboardPage] Requesting weather URL:', url);
+      const res = await fetch(url, { signal: controller.signal });
+      console.log('[DashboardPage] Weather response status:', res.status);
+
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail || `Failed to fetch weather for ${displayLocation}`);
       }
       const data = await res.json();
+      console.log('[DashboardPage] Parsed weather JSON:', data);
       setRealWeather(data);
     } catch (err) {
-      setError(err.message || 'Failed to fetch weather data');
+      const errorMsg = err.name === 'AbortError'
+        ? 'Weather fetch timed out. Please check backend network connection.'
+        : (err.message || 'Failed to fetch weather data');
+      console.error('[DashboardPage] Weather fetch error:', errorMsg, err);
+      setError(errorMsg);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
