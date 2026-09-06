@@ -38,6 +38,15 @@ function ExistingDashboard() {
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [theme, setTheme] = useState('light');
+
+  React.useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
 
   if (authLoading) {
     return (
@@ -215,7 +224,15 @@ function ExistingDashboard() {
         );
 
       case 'settings':
-        return <SettingsPage currentLocation={currentLocation} />;
+        return (
+          <SettingsPage
+            currentLocation={currentLocation}
+            selectedLanguage={selectedLanguage}
+            onLanguageChange={setSelectedLanguage}
+            theme={theme}
+            onThemeChange={setTheme}
+          />
+        );
 
       case 'dashboard':
       default:

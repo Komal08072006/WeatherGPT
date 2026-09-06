@@ -152,6 +152,58 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // Update User Profile (display name & photo URL)
+  const updateUserProfileData = async ({ name, photoURL }) => {
+    const userToUpdate = auth.currentUser || currentUser;
+    if (!userToUpdate) {
+      throw new Error('No logged in user found.');
+    }
+
+    const updatedDisplayName = name !== undefined ? name : (userToUpdate.displayName || '');
+    const updatedPhotoURL = photoURL !== undefined ? photoURL : (userToUpdate.photoURL || null);
+
+    // 1. Update Firebase Auth user profile
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, {
+        displayName: updatedDisplayName,
+        photoURL: updatedPhotoURL
+      });
+    }
+
+    // 2. Update Firestore user document if accessible
+    try {
+      const userDocRef = doc(db, 'users', userToUpdate.uid);
+      await setDoc(userDocRef, {
+        name: updatedDisplayName,
+        photoURL: updatedPhotoURL,
+        email: userToUpdate.email || ''
+      }, { merge: true });
+    } catch (error) {
+      console.warn("Firestore user profile update warning:", error);
+    }
+
+    // 3. Update AuthContext states so changes reflect immediately across UI
+    const newProfile = {
+      ...(userProfile || {}),
+      uid: userToUpdate.uid,
+      name: updatedDisplayName,
+      photoURL: updatedPhotoURL,
+      email: userToUpdate.email || userProfile?.email || ''
+    };
+    setUserProfile(newProfile);
+
+    // Synchronize currentUser local reference
+    if (currentUser) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        displayName: updatedDisplayName,
+        photoURL: updatedPhotoURL
+      }));
+    }
+
+    return newProfile;
+  };
+
   const value = {
     currentUser,
     userProfile,
@@ -159,7 +211,8 @@ export function AuthProvider({ children }) {
     signupWithEmail,
     loginWithEmail,
     loginWithGoogle,
-    logout
+    logout,
+    updateUserProfileData
   };
 
   return (
