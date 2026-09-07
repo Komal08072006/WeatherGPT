@@ -33,6 +33,7 @@ export default function DashboardPage({
   const fetchWeather = async () => {
     setLoading(true);
     setError(null);
+    setRealWeather(null);
 
     const maxAutoRetries = 2;
     const retryDelay = 1500;
@@ -81,6 +82,8 @@ export default function DashboardPage({
   };
 
   useEffect(() => {
+    setRealWeather(null);
+    setError(null);
     fetchWeather();
   }, [searchLocation, currentLocation?.latitude, currentLocation?.longitude]);
 
@@ -111,7 +114,9 @@ export default function DashboardPage({
   }
 
   let conditionText = 'Clear';
-  if (precipAmount > 0.5) {
+  if (!realWeather) {
+    conditionText = error ? 'No Data Available' : 'Loading...';
+  } else if (precipAmount > 0.5) {
     conditionText = 'Rainy';
   } else if (precipAmount > 0) {
     conditionText = 'Light Rain';
@@ -173,7 +178,7 @@ export default function DashboardPage({
     }
   }
 
-  const hourlyDataToRender = parsedHourlyForecast.length > 0 ? parsedHourlyForecast : mockHourlyForecast;
+  const hourlyDataToRender = parsedHourlyForecast.length > 0 ? parsedHourlyForecast : (realWeather ? mockHourlyForecast : []);
 
   // Parse 7-Day Weekly Forecast
   const daily = weatherObj.daily || {};
@@ -236,7 +241,7 @@ export default function DashboardPage({
     }
   }
 
-  const weeklyDataToRender = parsedWeeklyForecast.length > 0 ? parsedWeeklyForecast : mockWeeklyForecast;
+  const weeklyDataToRender = parsedWeeklyForecast.length > 0 ? parsedWeeklyForecast : (realWeather ? mockWeeklyForecast : []);
 
   const cardData = {
     location: formattedDisplayName,
@@ -248,17 +253,17 @@ export default function DashboardPage({
       humidity: {
         label: 'HUMIDITY',
         value: humidityVal,
-        subText: 'Relative humidity'
+        subText: realWeather ? 'Relative humidity' : 'No data'
       },
       wind: {
         label: 'WIND SPEED',
         value: windVal,
-        subText: '10m elevation'
+        subText: realWeather ? '10m elevation' : 'No data'
       },
       precipProb: {
         label: 'PRECIP PROB',
-        value: `${currentPrecipProb}%`,
-        subText: `Current precip: ${precipAmount} mm`
+        value: realWeather ? `${currentPrecipProb}%` : '--',
+        subText: realWeather ? `Current precip: ${precipAmount} mm` : 'No data'
       }
     }
   };

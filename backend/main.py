@@ -698,59 +698,6 @@ async def get_weather(
         )
 
 
-@app.get("/test-openweather")
-async def test_openweather(
-    location: str | None = Query(None, description="Name of the location/city"),
-    latitude: float | None = Query(None, description="Latitude coordinate"),
-    longitude: float | None = Query(None, description="Longitude coordinate"),
-):
-    if not location and (latitude is None or longitude is None):
-        raise HTTPException(
-            status_code=400,
-            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
-        )
-
-    if not OPENWEATHER_API_KEY:
-        raise HTTPException(
-            status_code=500,
-            detail="OPENWEATHER_API_KEY environment variable is not configured."
-        )
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            lat = latitude
-            lon = longitude
-            location_name = location or "Current Location"
-            country = ""
-            admin1 = ""
-
-            if location and not (lat is not None and lon is not None):
-                sorted_results = await search_geocoding_results(client, location.strip(), count=10)
-                if not sorted_results:
-                    raise HTTPException(
-                        status_code=404,
-                        detail=f"Location '{location}' not found during geocoding lookup."
-                    )
-                location_info = sorted_results[0]
-                lat = location_info.get("latitude")
-                lon = location_info.get("longitude")
-                location_name = location_info.get("name", location)
-                country = location_info.get("country", "")
-                admin1 = location_info.get("admin1", "")
-
-            print(f"[TEST_OPENWEATHER] Directly calling OpenWeatherMap API for location='{location_name}', lat={lat}, lon={lon}")
-            return await fetch_openweathermap_weather_data(client, lat, lon, location_name, country, admin1)
-
-    except HTTPException as http_exc:
-        raise http_exc
-    except Exception as exc:
-        print(f"[TEST_OPENWEATHER ERROR] Direct OpenWeatherMap fetch failed: {type(exc).__name__}: {exc}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"OpenWeatherMap API request failed: {type(exc).__name__}: {str(exc)}"
-        )
-
-
 def evaluate_alert(weather_data: dict) -> dict:
 
     weather = weather_data.get("weather", {})
