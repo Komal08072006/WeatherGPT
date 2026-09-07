@@ -21,28 +21,42 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, selected
     setLoading(true);
     setError(null);
 
-    try {
-      let url = '';
-      if (currentLocation && typeof currentLocation === 'object' && currentLocation.latitude != null && currentLocation.longitude != null) {
-        url = `${API_BASE_URL}/farmer-advisory?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&language=${encodeURIComponent(lang)}`;
-      } else {
-        const cleanName = getCleanLocationName(currentLocation);
-        url = `${API_BASE_URL}/farmer-advisory?location=${encodeURIComponent(cleanName)}&language=${encodeURIComponent(lang)}`;
-      }
+    const maxAutoRetries = 2;
+    const retryDelay = 1500;
+    let lastErrorMsg = '';
 
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Failed to fetch farmer advisory');
-      }
+    for (let attempt = 0; attempt <= maxAutoRetries; attempt++) {
+      try {
+        let url = '';
+        if (currentLocation && typeof currentLocation === 'object' && currentLocation.latitude != null && currentLocation.longitude != null) {
+          url = `${API_BASE_URL}/farmer-advisory?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}&language=${encodeURIComponent(lang)}`;
+        } else {
+          const cleanName = getCleanLocationName(currentLocation);
+          url = `${API_BASE_URL}/farmer-advisory?location=${encodeURIComponent(cleanName)}&language=${encodeURIComponent(lang)}`;
+        }
 
-      const data = await response.json();
-      setAdvisory(data);
-    } catch (err) {
-      setError(err.message || 'Failed to generate farmer advisory');
-    } finally {
-      setLoading(false);
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Failed to fetch farmer advisory');
+        }
+
+        const data = await response.json();
+        setAdvisory(data);
+        setError(null);
+        setLoading(false);
+        return;
+      } catch (err) {
+        lastErrorMsg = err.message || 'Failed to generate farmer advisory';
+        console.warn(`[FarmerAdvisory] Attempt ${attempt + 1} failed:`, lastErrorMsg);
+        if (attempt < maxAutoRetries) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        }
+      }
     }
+
+    setError(lastErrorMsg);
+    setLoading(false);
   };
 
   useEffect(() => {

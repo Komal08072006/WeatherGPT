@@ -53,7 +53,7 @@ CLIMATE_CACHE: dict[str, tuple[float, dict]] = {}
 CLIMATE_CACHE_TTL = 3600  # 1 hour in seconds
 
 GEOCODING_CACHE: dict[str, tuple[float, list[dict]]] = {}
-GEOCODING_CACHE_TTL = 86400  # 24 hours in seconds
+GEOCODING_CACHE_TTL = 300  # 5 minutes in seconds
 
 
 async def fetch_with_retry(
@@ -62,24 +62,38 @@ async def fetch_with_retry(
     params: dict | None = None,
     headers: dict | None = None,
     max_retries: int = 2,
-    initial_backoff: float = 1.0,
+    delays: list[float] | None = None,
 ) -> httpx.Response:
-    """Perform HTTP GET request with retry & exponential backoff for 429 Too Many Requests."""
-    backoff = initial_backoff
+    """Perform HTTP GET request with retry & backoff for 429 Too Many Requests and unexpected errors (5xx, network errors)."""
+    if delays is None:
+        delays = [0.8, 1.5]
+
+    last_res = None
     for attempt in range(max_retries + 1):
-        res = await client.get(url, params=params, headers=headers)
-        if res.status_code == 429:
+        try:
+            res = await client.get(url, params=params, headers=headers)
+            last_res = res
+            if res.status_code == 429 or res.status_code >= 500:
+                if attempt < max_retries:
+                    delay = delays[attempt] if attempt < len(delays) else delays[-1]
+                    print(f"[FETCH_RETRY] {url} returned HTTP {res.status_code}. Waiting {delay}s before attempt {attempt + 2}/{max_retries + 1}...")
+                    await asyncio.sleep(delay)
+                    continue
+                elif res.status_code == 429:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="Weather service is temporarily busy, please try again in a moment."
+                    )
+            return res
+        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
             if attempt < max_retries:
-                await asyncio.sleep(backoff)
-                backoff *= 2.0
+                delay = delays[attempt] if attempt < len(delays) else delays[-1]
+                print(f"[FETCH_RETRY ERROR] {url} raised {type(exc).__name__}: {exc}. Waiting {delay}s before attempt {attempt + 2}/{max_retries + 1}...")
+                await asyncio.sleep(delay)
                 continue
-            else:
-                raise HTTPException(
-                    status_code=429,
-                    detail="Weather service is temporarily busy, please try again in a moment."
-                )
-        return res
-    return res
+            raise exc
+
+    return last_res
 
 
 async def fetch_openweathermap_weather_data(
@@ -118,6 +132,8 @@ async def fetch_openweathermap_weather_data(
     try:
         owm_curr = curr_res.json()
         owm_forecast = forecast_res.json()
+        print(f"[OWM RAW DATA LOG] Current weather API keys: {list(owm_curr.keys())}, main: {owm_curr.get('main')}, weather: {owm_curr.get('weather')}")
+        print(f"[OWM RAW DATA LOG] Forecast API keys: {list(owm_forecast.keys())}, items count: {len(owm_forecast.get('list', []))}")
 
         # Parse current conditions
         main_curr = owm_curr.get("main", {})
@@ -321,6 +337,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
     if clean_query in GEOCODING_CACHE:
         ts, cached_list = GEOCODING_CACHE[clean_query]
         if now - ts < GEOCODING_CACHE_TTL:
+            print(f"[GEOCODING CACHE] Cache hit for query '{clean_query}'")
             return cached_list
 
     # 1. Fetch from Open-Meteo Geocoding API (count=10)
@@ -330,9 +347,11 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
             res = await fetch_with_retry(
                 client,
                 geo_url,
-                params={"name": query.strip(), "count": count, "language": "en", "format": "json"}
+                params={"name": query.strip(), "count": count, "language": "en", "format": "json"},
+                max_retries=2,
+                delays=[0.8, 1.5]
             )
-            if res.status_code == 200:
+            if res and res.status_code == 200:
                 geo_data = res.json()
                 return [
                     {
@@ -345,7 +364,8 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
                     }
                     for item in (geo_data.get("results") or [])
                 ]
-        except Exception:
+        except Exception as err:
+            print(f"[GEOCODING OPEN-METEO WARNING] {type(err).__name__}: {err}")
             pass
         return []
 
@@ -528,7 +548,13 @@ async def fetch_weather_data(
 
             result = None
             try:
-                forecast_response = await fetch_with_retry(client, forecast_url, params=forecast_params)
+                forecast_response = await fetch_with_retry(
+                    client,
+                    forecast_url,
+                    params=forecast_params,
+                    max_retries=2,
+                    delays=[0.8, 1.5]
+                )
                 forecast_response.raise_for_status()
                 weather_data = forecast_response.json()
                 result = {
@@ -669,6 +695,59 @@ async def get_weather(
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred: {str(exc)}"
+        )
+
+
+@app.get("/test-openweather")
+async def test_openweather(
+    location: str | None = Query(None, description="Name of the location/city"),
+    latitude: float | None = Query(None, description="Latitude coordinate"),
+    longitude: float | None = Query(None, description="Longitude coordinate"),
+):
+    if not location and (latitude is None or longitude is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+        )
+
+    if not OPENWEATHER_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="OPENWEATHER_API_KEY environment variable is not configured."
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            lat = latitude
+            lon = longitude
+            location_name = location or "Current Location"
+            country = ""
+            admin1 = ""
+
+            if location and not (lat is not None and lon is not None):
+                sorted_results = await search_geocoding_results(client, location.strip(), count=10)
+                if not sorted_results:
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Location '{location}' not found during geocoding lookup."
+                    )
+                location_info = sorted_results[0]
+                lat = location_info.get("latitude")
+                lon = location_info.get("longitude")
+                location_name = location_info.get("name", location)
+                country = location_info.get("country", "")
+                admin1 = location_info.get("admin1", "")
+
+            print(f"[TEST_OPENWEATHER] Directly calling OpenWeatherMap API for location='{location_name}', lat={lat}, lon={lon}")
+            return await fetch_openweathermap_weather_data(client, lat, lon, location_name, country, admin1)
+
+    except HTTPException as http_exc:
+        raise http_exc
+    except Exception as exc:
+        print(f"[TEST_OPENWEATHER ERROR] Direct OpenWeatherMap fetch failed: {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"OpenWeatherMap API request failed: {type(exc).__name__}: {str(exc)}"
         )
 
 

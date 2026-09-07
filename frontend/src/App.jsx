@@ -76,82 +76,97 @@ function ExistingDashboard() {
     setIsSearchLoading(true);
     setSearchError(null);
 
-    try {
-      let url = '';
-      if (typeof locationQuery === 'object' && locationQuery.latitude != null && locationQuery.longitude != null) {
-        url = `${API_BASE_URL}/weather?latitude=${locationQuery.latitude}&longitude=${locationQuery.longitude}`;
-      } else {
-        if (typeof locationQuery === 'string' && !locationQuery.trim()) {
-          setIsSearchLoading(false);
-          return;
-        }
-        const cleanSearchName = getCleanLocationName(locationQuery);
-        url = `${API_BASE_URL}/weather?location=${encodeURIComponent(cleanSearchName)}`;
-      }
+    const maxAutoRetries = 2;
+    const retryDelay = 1500;
+    let lastErrorMsg = '';
 
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to fetch weather data');
-      }
-
-      const data = await response.json();
-      const curr = data.weather?.current || {};
-
-      const tempVal = curr.temperature_2m != null ? Math.round(curr.temperature_2m) : mockCurrentWeather.temperature;
-      const humidityVal = curr.relative_humidity_2m != null ? `${curr.relative_humidity_2m}%` : mockCurrentWeather.metrics.humidity.value;
-      const windVal = curr.wind_speed_10m != null ? `${curr.wind_speed_10m} km/h` : mockCurrentWeather.metrics.wind.value;
-      const precipVal = curr.precipitation != null ? `${curr.precipitation} mm` : mockCurrentWeather.metrics.precipProb.value;
-
-      const formattedDisplayName = data.admin1
-        ? `${data.location}, ${data.admin1}`
-        : data.country
-        ? `${data.location}, ${data.country}`
-        : data.location;
-
-      setCurrentLocation({
-        id: data.location.toLowerCase(),
-        name: formattedDisplayName,
-        searchName: data.location,
-        latitude: data.coordinates.latitude,
-        longitude: data.coordinates.longitude,
-        region: data.admin1 ? `${data.admin1}, ${data.country}` : data.country || 'Region',
-        code: `${data.coordinates.latitude.toFixed(2)}°, ${data.coordinates.longitude.toFixed(2)}°`
-      });
-
-      setCurrentWeather((prev) => ({
-        ...prev,
-        location: formattedDisplayName,
-        country: data.country || 'India',
-        basin: data.admin1 || prev.basin,
-        temperature: tempVal,
-        feelsLike: tempVal,
-        lastUpdated: 'Just now (Live API)',
-        metrics: {
-          ...prev.metrics,
-          humidity: {
-            ...prev.metrics.humidity,
-            value: humidityVal,
-            subText: 'Live sensor reading'
-          },
-          wind: {
-            ...prev.metrics.wind,
-            value: windVal,
-            subText: '10m elevation'
-          },
-          precipProb: {
-            ...prev.metrics.precipProb,
-            label: 'Precipitation',
-            value: precipVal,
-            subText: 'Current rainfall'
+    for (let attempt = 0; attempt <= maxAutoRetries; attempt++) {
+      try {
+        let url = '';
+        if (typeof locationQuery === 'object' && locationQuery.latitude != null && locationQuery.longitude != null) {
+          url = `${API_BASE_URL}/weather?latitude=${locationQuery.latitude}&longitude=${locationQuery.longitude}`;
+        } else {
+          if (typeof locationQuery === 'string' && !locationQuery.trim()) {
+            setIsSearchLoading(false);
+            return;
           }
+          const cleanSearchName = getCleanLocationName(locationQuery);
+          url = `${API_BASE_URL}/weather?location=${encodeURIComponent(cleanSearchName)}`;
         }
-      }));
-    } catch (err) {
-      setSearchError(err.message || 'Failed to fetch weather data');
-    } finally {
-      setIsSearchLoading(false);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to fetch weather data');
+        }
+
+        const data = await response.json();
+        const curr = data.weather?.current || {};
+
+        const tempVal = curr.temperature_2m != null ? Math.round(curr.temperature_2m) : mockCurrentWeather.temperature;
+        const humidityVal = curr.relative_humidity_2m != null ? `${curr.relative_humidity_2m}%` : mockCurrentWeather.metrics.humidity.value;
+        const windVal = curr.wind_speed_10m != null ? `${curr.wind_speed_10m} km/h` : mockCurrentWeather.metrics.wind.value;
+        const precipVal = curr.precipitation != null ? `${curr.precipitation} mm` : mockCurrentWeather.metrics.precipProb.value;
+
+        const formattedDisplayName = data.admin1
+          ? `${data.location}, ${data.admin1}`
+          : data.country
+          ? `${data.location}, ${data.country}`
+          : data.location;
+
+        setCurrentLocation({
+          id: data.location.toLowerCase(),
+          name: formattedDisplayName,
+          searchName: data.location,
+          latitude: data.coordinates.latitude,
+          longitude: data.coordinates.longitude,
+          region: data.admin1 ? `${data.admin1}, ${data.country}` : data.country || 'Region',
+          code: `${data.coordinates.latitude.toFixed(2)}°, ${data.coordinates.longitude.toFixed(2)}°`
+        });
+
+        setCurrentWeather((prev) => ({
+          ...prev,
+          location: formattedDisplayName,
+          country: data.country || 'India',
+          basin: data.admin1 || prev.basin,
+          temperature: tempVal,
+          feelsLike: tempVal,
+          lastUpdated: 'Just now (Live API)',
+          metrics: {
+            ...prev.metrics,
+            humidity: {
+              ...prev.metrics.humidity,
+              value: humidityVal,
+              subText: 'Live sensor reading'
+            },
+            wind: {
+              ...prev.metrics.wind,
+              value: windVal,
+              subText: '10m elevation'
+            },
+            precipProb: {
+              ...prev.metrics.precipProb,
+              label: 'Precipitation',
+              value: precipVal,
+              subText: 'Current rainfall'
+            }
+          }
+        }));
+
+        setSearchError(null);
+        setIsSearchLoading(false);
+        return;
+      } catch (err) {
+        lastErrorMsg = err.message || 'Failed to fetch weather data';
+        console.warn(`[App handleSearch] Attempt ${attempt + 1} failed:`, lastErrorMsg);
+        if (attempt < maxAutoRetries) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        }
+      }
     }
+
+    setSearchError(lastErrorMsg);
+    setIsSearchLoading(false);
   };
 
   const handleRefresh = () => {
