@@ -17,6 +17,7 @@ from pydantic import BaseModel
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -242,9 +243,15 @@ async def fetch_openweathermap_weather_data(
         raise parse_err
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatRequest(BaseModel):
     message: str
     language: str = "English"
+    conversation_history: list[dict] | list[ChatMessage] | None = None
 
 
 # Hardcoded lookup table for all 28 Indian States and 8 Union Territories
@@ -791,7 +798,61 @@ async def get_alerts(
 
 
 
-def generate_gemini_content(prompt_or_contents: str, system_instruction: str = None) -> str:
+def generate_groq_content(prompt_or_contents: str, system_instruction: str = None) -> str:
+    """Fallback AI content generation using Groq HTTP API with httpx."""
+    if not GROQ_API_KEY:
+        raise ValueError("GROQ_API_KEY environment variable is not configured.")
+
+    groq_url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    messages = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt_or_contents})
+
+    candidate_models = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "mixtral-8x7b-32768",
+        "llama3-70b-8192",
+    ]
+
+    last_exc = None
+    with httpx.Client(timeout=15.0) as client:
+        for model in candidate_models:
+            try:
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": 0.7,
+                }
+                res = client.post(groq_url, headers=headers, json=payload)
+                if res.status_code == 200:
+                    data = res.json()
+                    choices = data.get("choices", [])
+                    if choices and len(choices) > 0:
+                        content = choices[0].get("message", {}).get("content", "").strip()
+                        if content:
+                            print(f"[GROQ SUCCESS] Successfully generated AI response using model '{model}'")
+                            return content
+                else:
+                    print(f"[GROQ WARNING] Model '{model}' returned HTTP {res.status_code}: {res.text[:200]}")
+            except Exception as err:
+                last_exc = err
+                print(f"[GROQ ERROR] Request failed for model '{model}': {type(err).__name__}: {err}")
+                continue
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Failed to generate response from Groq API")
+
+
+def generate_gemini_raw(prompt_or_contents: str, system_instruction: str = None) -> str:
+    """Internal helper to attempt generation via Gemini API candidate models."""
     candidate_models = [
         "gemini-3.5-flash",
         "gemini-3.6-flash",
@@ -810,12 +871,37 @@ def generate_gemini_content(prompt_or_contents: str, system_instruction: str = N
             return resp.text.strip()
         except Exception as exc:
             last_exc = exc
-            # Catch rate limits, 404 deprecated models, or quota errors and try next candidate
             if any(err in str(exc) for err in ["429", "404", "Quota", "quota", "RESOURCE_EXHAUSTED", "not found", "no longer available"]):
                 continue
             raise exc
     if last_exc:
         raise last_exc
+    raise RuntimeError("Gemini API models failed")
+
+
+def generate_gemini_content(prompt_or_contents: str, system_instruction: str = None) -> str:
+    """Primary AI entry point: tries Gemini first, automatically falls back to Groq on failure."""
+    gemini_error = None
+
+    if GEMINI_API_KEY:
+        try:
+            return generate_gemini_raw(prompt_or_contents, system_instruction=system_instruction)
+        except Exception as exc:
+            gemini_error = exc
+            print(f"[AI FALLBACK TRIGGERED] Gemini API failed ({type(exc).__name__}: {exc}). Switching to Groq fallback...")
+    else:
+        print("[AI FALLBACK] GEMINI_API_KEY is not configured. Switching directly to Groq fallback...")
+
+    if GROQ_API_KEY:
+        try:
+            return generate_groq_content(prompt_or_contents, system_instruction=system_instruction)
+        except Exception as groq_err:
+            print(f"[AI FALLBACK ERROR] Groq API fallback also failed ({type(groq_err).__name__}: {groq_err})")
+            raise groq_err
+
+    if gemini_error:
+        raise gemini_error
+    raise RuntimeError("No AI provider (Gemini or Groq) is configured or operational.")
 
 
 
@@ -824,14 +910,32 @@ async def chat_endpoint(request: ChatRequest):
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY and not GROQ_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="GEMINI_API_KEY environment variable is not configured."
+            detail="AI service is not configured."
         )
 
     user_text = request.message.strip()
     print(f"\n[CHAT REQ] User message: {user_text!r} | Language: {request.language!r}")
+
+    # Build conversation context string from recent history if provided
+    history_str = ""
+    if request.conversation_history:
+        formatted_turns = []
+        for turn in request.conversation_history[-4:]:
+            if isinstance(turn, dict):
+                r = turn.get("role", "user")
+                c = turn.get("content", "")
+            else:
+                r = getattr(turn, "role", "user")
+                c = getattr(turn, "content", "")
+
+            role_label = "User" if str(r).lower() == "user" else "Assistant"
+            if c:
+                formatted_turns.append(f"{role_label}: {c.strip()}")
+        if formatted_turns:
+            history_str = "Recent Conversation History:\n" + "\n".join(formatted_turns) + "\n\n"
 
     try:
         # 1. Use Gemini API to extract location and intent
@@ -840,14 +944,17 @@ async def chat_endpoint(request: ChatRequest):
             "The user's message may be in any language (English, Hindi, or others). "
             "Regardless of input language, always respond with a valid JSON object in the exact format specified, with location and intent as plain string values. "
             "Respond ONLY with a JSON object containing exactly two fields: "
-            '"location" (the place name mentioned in the message, translated/transliterated to standard English place name if needed, or "unknown" if none is mentioned) '
+            '"location" (the place name mentioned in the message or conversation context, translated/transliterated to standard English place name if needed, or "unknown" if none is mentioned) '
             'and "intent" (one of: "forecast", "alert", "climate", "general"). '
+            "If the current message alone doesn't contain a location, check the recent conversation history — if the assistant's last message asked the user to specify a location, and the current message is just a place name or short phrase (e.g. 'lucknow', 'mumbai', 'delhi'), treat that as the answer to that question and extract it as the location. "
             "Do not include code fences, markdown, or extra explanations outside the JSON."
         )
 
+        prompt_text = f"{history_str}Current User Message: {user_text}" if history_str else user_text
+
         raw_text = ""
         try:
-            raw_text = generate_gemini_content(user_text, system_instruction=extractor_instruction)
+            raw_text = generate_gemini_content(prompt_text, system_instruction=extractor_instruction)
             print(f"[CHAT GEMINI RAW EXTRACT]: {raw_text!r}")
         except Exception as gem_err:
             print(f"[CHAT ERROR] Gemini location extraction call failed: {gem_err}")
@@ -980,10 +1087,10 @@ async def get_farmer_advisory(
             detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
         )
 
-    if not GEMINI_API_KEY:
+    if not GEMINI_API_KEY and not GROQ_API_KEY:
         raise HTTPException(
             status_code=500,
-            detail="GEMINI_API_KEY environment variable is not configured."
+            detail="AI service is not configured."
         )
 
     try:
@@ -1051,15 +1158,11 @@ async def get_farmer_advisory(
         if not formatted_recs:
             raise ValueError("No recommendations generated")
 
-    except json.JSONDecodeError as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to parse AI response into JSON for farmer advisory: {str(exc)}"
-        )
     except Exception as exc:
+        print(f"[FARMER ADVISORY ERROR] Exception during advisory generation: {type(exc).__name__}: {exc}")
         raise HTTPException(
-            status_code=502,
-            detail=f"Gemini API error during advisory generation: {str(exc)}"
+            status_code=503,
+            detail="Farmer advisory is temporarily unavailable. Please try again later."
         )
 
     return {

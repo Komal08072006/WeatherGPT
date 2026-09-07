@@ -292,6 +292,12 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
       text: query.trim()
     };
 
+    // Build conversation history context from recent message exchanges (last 4 messages)
+    const conversationHistory = messages.slice(-4).map((m) => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text || ''
+    }));
+
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInputText('');
     setIsTyping(true);
@@ -304,7 +310,8 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
         },
         body: JSON.stringify({
           message: query.trim(),
-          language: selectedLanguage
+          language: selectedLanguage,
+          conversation_history: conversationHistory
         })
       });
 
