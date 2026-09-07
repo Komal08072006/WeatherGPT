@@ -4,6 +4,7 @@ from datetime import date, timedelta
 import json
 import os
 import re
+import time
 from dotenv import load_dotenv
 import google.generativeai as genai
 import httpx
@@ -15,6 +16,7 @@ from pydantic import BaseModel
 # Load environment variables
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -27,13 +29,201 @@ app = FastAPI(
 )
 
 # Enable CORS for frontend requests
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "https://weathergpt-frontend-dl6l.onrender.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- In-Memory Caching & Rate Limit Mitigation ---
+WEATHER_CACHE: dict[str, tuple[float, dict]] = {}
+WEATHER_CACHE_TTL = 300  # 5 minutes in seconds
+
+CLIMATE_CACHE: dict[str, tuple[float, dict]] = {}
+CLIMATE_CACHE_TTL = 3600  # 1 hour in seconds
+
+GEOCODING_CACHE: dict[str, tuple[float, list[dict]]] = {}
+GEOCODING_CACHE_TTL = 86400  # 24 hours in seconds
+
+
+async def fetch_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    params: dict | None = None,
+    headers: dict | None = None,
+    max_retries: int = 2,
+    initial_backoff: float = 1.0,
+) -> httpx.Response:
+    """Perform HTTP GET request with retry & exponential backoff for 429 Too Many Requests."""
+    backoff = initial_backoff
+    for attempt in range(max_retries + 1):
+        res = await client.get(url, params=params, headers=headers)
+        if res.status_code == 429:
+            if attempt < max_retries:
+                await asyncio.sleep(backoff)
+                backoff *= 2.0
+                continue
+            else:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Weather service is temporarily busy, please try again in a moment."
+                )
+        return res
+    return res
+
+
+async def fetch_openweathermap_weather_data(
+    client: httpx.AsyncClient,
+    lat: float,
+    lon: float,
+    location_name: str,
+    country: str,
+    admin1: str,
+) -> dict:
+    """Fallback weather data provider using OpenWeatherMap API."""
+    if not OPENWEATHER_API_KEY:
+        raise ValueError("OPENWEATHER_API_KEY is not configured")
+
+    curr_url = "https://api.openweathermap.org/data/2.5/weather"
+    forecast_url = "https://api.openweathermap.org/data/2.5/forecast"
+
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "appid": OPENWEATHER_API_KEY,
+        "units": "metric",
+    }
+
+    try:
+        curr_res, forecast_res = await asyncio.gather(
+            client.get(curr_url, params=params),
+            client.get(forecast_url, params=params),
+        )
+        curr_res.raise_for_status()
+        forecast_res.raise_for_status()
+    except Exception as http_err:
+        print(f"[FALLBACK HTTP ERROR] OpenWeatherMap API HTTP request failed: {type(http_err).__name__}: {http_err}")
+        raise http_err
+
+    try:
+        owm_curr = curr_res.json()
+        owm_forecast = forecast_res.json()
+
+        # Parse current conditions
+        main_curr = owm_curr.get("main", {})
+        wind_curr = owm_curr.get("wind", {})
+        rain_curr = owm_curr.get("rain", {})
+        curr_precip = 0.0
+        if isinstance(rain_curr, dict):
+            curr_precip = float(rain_curr.get("1h") or rain_curr.get("3h") or 0.0)
+        elif isinstance(rain_curr, (int, float)):
+            curr_precip = float(rain_curr)
+
+        # Parse 5-day / 3-hour forecast list into hourly and daily format
+        hourly_time = []
+        hourly_temp = []
+        hourly_precip_prob = []
+
+        daily_groups = {}
+
+        for item in owm_forecast.get("list", []):
+            dt_txt = item.get("dt_txt", "")
+            formatted_time = dt_txt.replace(" ", "T")[:16] if dt_txt else ""
+            temp = round(float(item.get("main", {}).get("temp", 0.0)), 1)
+            pop = float(item.get("pop", 0.0) or 0.0)
+            pop_pct = int(round(pop * 100))
+
+            if formatted_time:
+                hourly_time.append(formatted_time)
+                hourly_temp.append(temp)
+                hourly_precip_prob.append(pop_pct)
+
+            if dt_txt:
+                day_str = dt_txt.split(" ")[0]
+                if day_str not in daily_groups:
+                    daily_groups[day_str] = {
+                        "temp_mins": [],
+                        "temp_maxs": [],
+                        "precips": [],
+                    }
+                item_main = item.get("main", {})
+                if "temp_min" in item_main:
+                    daily_groups[day_str]["temp_mins"].append(float(item_main["temp_min"]))
+                if "temp_max" in item_main:
+                    daily_groups[day_str]["temp_maxs"].append(float(item_main["temp_max"]))
+
+                rain_obj = item.get("rain")
+                rain_val = 0.0
+                if isinstance(rain_obj, dict):
+                    rain_val = float(rain_obj.get("3h", 0.0) or 0.0)
+                elif isinstance(rain_obj, (int, float)):
+                    rain_val = float(rain_obj)
+                daily_groups[day_str]["precips"].append(rain_val)
+
+        daily_time = []
+        daily_temp_max = []
+        daily_temp_min = []
+        daily_precip_sum = []
+
+        for day_str, stats in daily_groups.items():
+            daily_time.append(day_str)
+            t_min = round(min(stats["temp_mins"]), 1) if stats["temp_mins"] else 0.0
+            t_max = round(max(stats["temp_maxs"]), 1) if stats["temp_maxs"] else 0.0
+            p_sum = round(sum(stats["precips"]), 1)
+            daily_temp_min.append(t_min)
+            daily_temp_max.append(t_max)
+            daily_precip_sum.append(p_sum)
+
+        now_iso = time.strftime("%Y-%m-%dT%H:%M")
+
+        return {
+            "location": location_name,
+            "country": country,
+            "admin1": admin1,
+            "coordinates": {
+                "latitude": lat,
+                "longitude": lon,
+            },
+            "data_source": "OpenWeatherMap (fallback)",
+            "weather": {
+                "current": {
+                    "time": now_iso,
+                    "temperature_2m": round(float(main_curr.get("temp", 0.0)), 1),
+                    "relative_humidity_2m": int(main_curr.get("humidity", 0)),
+                    "precipitation": round(curr_precip, 1),
+                    "wind_speed_10m": round(float(wind_curr.get("speed", 0.0)) * 3.6, 1),
+                },
+                "hourly": {
+                    "time": hourly_time,
+                    "temperature_2m": hourly_temp,
+                    "precipitation_probability": hourly_precip_prob,
+                },
+                "daily": {
+                    "time": daily_time,
+                    "temperature_2m_max": daily_temp_max,
+                    "temperature_2m_min": daily_temp_min,
+                    "precipitation_sum": daily_precip_sum,
+                },
+            },
+        }
+    except Exception as parse_err:
+        curr_text = getattr(curr_res, "text", "N/A")
+        forecast_text = getattr(forecast_res, "text", "N/A")
+        print(
+            f"[FALLBACK PARSE ERROR] OpenWeatherMap parsing failed: {type(parse_err).__name__}: {parse_err}. "
+            f"Raw current response: {curr_text[:500]!r}, Raw forecast response: {forecast_text[:500]!r}"
+        )
+        raise parse_err
 
 
 class ChatRequest(BaseModel):
@@ -126,14 +316,21 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
     if clean_query in INDIAN_STATES_LOOKUP:
         return [dict(INDIAN_STATES_LOOKUP[clean_query])]
 
+    # Check in-memory geocoding cache
+    now = time.time()
+    if clean_query in GEOCODING_CACHE:
+        ts, cached_list = GEOCODING_CACHE[clean_query]
+        if now - ts < GEOCODING_CACHE_TTL:
+            return cached_list
+
     # 1. Fetch from Open-Meteo Geocoding API (count=10)
     async def fetch_open_meteo():
         try:
             geo_url = "https://geocoding-api.open-meteo.com/v1/search"
-            res = await client.get(
+            res = await fetch_with_retry(
+                client,
                 geo_url,
-                params={"name": query.strip(), "count": count, "language": "en", "format": "json"},
-                timeout=3.0
+                params={"name": query.strip(), "count": count, "language": "en", "format": "json"}
             )
             if res.status_code == 200:
                 geo_data = res.json()
@@ -219,6 +416,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
         ),
         reverse=True
     )
+    GEOCODING_CACHE[clean_query] = (now, sorted_results)
     return sorted_results
 
 
@@ -227,83 +425,165 @@ async def fetch_weather_data(
     latitude: float | None = None,
     longitude: float | None = None,
 ) -> dict:
-    has_location = bool(location and location.strip())
-    has_coords = latitude is not None and longitude is not None
+    print(f"[FETCH_WEATHER] Request received for location={location!r}, latitude={latitude}, longitude={longitude}")
 
-    if not has_location and not has_coords:
-        raise HTTPException(
-            status_code=400,
-            detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
-        )
+    try:
+        has_location = bool(location and location.strip())
+        has_coords = latitude is not None and longitude is not None
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        lat = None
-        lon = None
-        location_name = "Current Location"
-        country = ""
-        admin1 = ""
+        if not has_location and not has_coords:
+            print("[FETCH_WEATHER ERROR] Neither location nor valid coordinates were provided.")
+            raise HTTPException(
+                status_code=400,
+                detail="Either 'location' or both 'latitude' and 'longitude' must be provided."
+            )
 
+        # Check cache for weather data
+        now = time.time()
+        candidate_keys = []
         if has_coords:
-            lat = latitude
-            lon = longitude
-            try:
-                rev_res = await client.get(
-                    "https://api.bigdatacloud.net/data/reverse-geocode-client",
-                    params={"latitude": lat, "longitude": lon}
-                )
-                if rev_res.status_code == 200:
-                    rev_data = rev_res.json()
-                    name = (
-                        rev_data.get("city")
-                        or rev_data.get("locality")
-                        or rev_data.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+            candidate_keys.append(f"coords:{round(latitude, 2)}:{round(longitude, 2)}")
+        if has_location:
+            candidate_keys.append(f"loc:{location.strip().lower()}")
+
+        for k in candidate_keys:
+            if k in WEATHER_CACHE:
+                ts, data = WEATHER_CACHE[k]
+                if now - ts < WEATHER_CACHE_TTL:
+                    print(f"[FETCH_WEATHER CACHE] Cache hit for key '{k}'")
+                    return data
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            lat = None
+            lon = None
+            location_name = "Current Location"
+            country = ""
+            admin1 = ""
+
+            if has_coords:
+                lat = latitude
+                lon = longitude
+                try:
+                    rev_res = await client.get(
+                        "https://api.bigdatacloud.net/data/reverse-geocode-client",
+                        params={"latitude": lat, "longitude": lon}
                     )
-                    if name:
-                        location_name = name
-                    country = rev_data.get("countryName", "")
-                    admin1 = rev_data.get("principalSubdivision", "")
-            except Exception:
-                pass
-        else:
-            sorted_results = await search_geocoding_results(client, location.strip(), count=10)
-            if not sorted_results:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Location '{location}' not found."
-                )
+                    if rev_res.status_code == 200:
+                        rev_data = rev_res.json()
+                        name = (
+                            rev_data.get("city")
+                            or rev_data.get("locality")
+                            or rev_data.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+                        )
+                        if name:
+                            location_name = name
+                        country = rev_data.get("countryName", "")
+                        admin1 = rev_data.get("principalSubdivision", "")
+                except Exception as rev_err:
+                    print(f"[GEOCODING WARNING] Reverse geocoding failed: {type(rev_err).__name__}: {rev_err}")
+            else:
+                try:
+                    sorted_results = await search_geocoding_results(client, location.strip(), count=10)
+                except Exception as geo_err:
+                    print(f"[GEOCODING ERROR] Geocoding lookup failed for '{location}': {type(geo_err).__name__}: {geo_err}")
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Failed to geocode location '{location}': {geo_err}"
+                    )
 
-            location_info = sorted_results[0]
-            lat = location_info.get("latitude")
-            lon = location_info.get("longitude")
-            location_name = location_info.get("name", location)
-            country = location_info.get("country", "")
-            admin1 = location_info.get("admin1", "")
+                if not sorted_results:
+                    print(f"[FETCH_WEATHER ERROR] Location '{location}' not found.")
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Location '{location}' not found."
+                    )
 
-        # 2. Call Open-Meteo Forecast API using latitude and longitude
-        forecast_url = "https://api.open-meteo.com/v1/forecast"
-        forecast_params = {
-            "latitude": lat,
-            "longitude": lon,
-            "current": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
-            "hourly": "temperature_2m,precipitation_probability",
-            "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum",
-            "timezone": "auto",
-        }
-        forecast_response = await client.get(forecast_url, params=forecast_params)
-        forecast_response.raise_for_status()
-        weather_data = forecast_response.json()
+                location_info = sorted_results[0]
+                lat = location_info.get("latitude")
+                lon = location_info.get("longitude")
+                location_name = location_info.get("name", location)
+                country = location_info.get("country", "")
+                admin1 = location_info.get("admin1", "")
 
-        # 3. Return JSON response containing location name, coordinates, and full weather data
-        return {
-            "location": location_name,
-            "country": country,
-            "admin1": admin1,
-            "coordinates": {
+            # Check cache by resolved coordinates
+            coord_key = f"coords:{round(lat, 2)}:{round(lon, 2)}"
+            if coord_key in WEATHER_CACHE:
+                ts, data = WEATHER_CACHE[coord_key]
+                if now - ts < WEATHER_CACHE_TTL:
+                    print(f"[FETCH_WEATHER CACHE] Cache hit for resolved coords key '{coord_key}'")
+                    if has_location:
+                        WEATHER_CACHE[f"loc:{location.strip().lower()}"] = (ts, data)
+                    return data
+
+            # 2. Call Open-Meteo Forecast API using latitude and longitude with retry & OWM fallback logic
+            forecast_url = "https://api.open-meteo.com/v1/forecast"
+            forecast_params = {
                 "latitude": lat,
                 "longitude": lon,
-            },
-            "weather": weather_data,
-        }
+                "current": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
+                "hourly": "temperature_2m,precipitation_probability",
+                "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum",
+                "timezone": "auto",
+            }
+
+            result = None
+            try:
+                forecast_response = await fetch_with_retry(client, forecast_url, params=forecast_params)
+                forecast_response.raise_for_status()
+                weather_data = forecast_response.json()
+                result = {
+                    "location": location_name,
+                    "country": country,
+                    "admin1": admin1,
+                    "coordinates": {
+                        "latitude": lat,
+                        "longitude": lon,
+                    },
+                    "data_source": "Open-Meteo",
+                    "weather": weather_data,
+                }
+                print(f"[FETCH_WEATHER SUCCESS] Successfully fetched weather data from Open-Meteo for '{location_name}'")
+            except Exception as open_meteo_err:
+                print(f"[OPEN-METEO ERROR] Open-Meteo request failed: {type(open_meteo_err).__name__}: {open_meteo_err}")
+
+                loc_identifier = location if (location and location.strip()) else location_name
+                print(f"[FALLBACK] Attempting OpenWeatherMap for {loc_identifier}")
+
+                if OPENWEATHER_API_KEY:
+                    try:
+                        result = await fetch_openweathermap_weather_data(client, lat, lon, location_name, country, admin1)
+                        print(f"[FALLBACK SUCCESS] Successfully fetched weather data from OpenWeatherMap for '{location_name}'")
+                    except Exception as owm_err:
+                        print(f"[FALLBACK ERROR] OpenWeatherMap fallback failed with {type(owm_err).__name__}: {owm_err}")
+                        raise HTTPException(
+                            status_code=503,
+                            detail="Weather data is temporarily unavailable from all sources, please try again shortly."
+                        )
+                else:
+                    print("[FALLBACK ERROR] OPENWEATHER_API_KEY is not configured. Cannot attempt fallback.")
+                    if isinstance(open_meteo_err, HTTPException):
+                        raise open_meteo_err
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Open-Meteo service failed and fallback key is missing: {open_meteo_err}"
+                    )
+
+            # Store in cache
+            WEATHER_CACHE[coord_key] = (now, result)
+            if has_location:
+                WEATHER_CACHE[f"loc:{location.strip().lower()}"] = (now, result)
+            if location_name:
+                WEATHER_CACHE[f"loc:{location_name.strip().lower()}"] = (now, result)
+
+            return result
+
+    except HTTPException as http_exc:
+        print(f"[FETCH_WEATHER ERROR] HTTPException {http_exc.status_code}: {http_exc.detail}")
+        raise http_exc
+    except Exception as exc:
+        print(f"[FETCH_WEATHER UNHANDLED ERROR] Unhandled exception in fetch_weather_data: {type(exc).__name__}: {exc}")
+        raise exc
+
 
 
 @app.get("/")
@@ -334,6 +614,11 @@ async def geocode_location(query: str = Query("", description="Location search q
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Weather service is temporarily busy, please try again in a moment."
+            )
         raise HTTPException(
             status_code=502,
             detail=f"External geocoding service error: {exc.response.status_code}"
@@ -366,6 +651,11 @@ async def get_weather(
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Weather service is temporarily busy, please try again in a moment."
+            )
         raise HTTPException(
             status_code=502,
             detail=f"External weather service responded with error status: {exc.response.status_code}"
@@ -453,6 +743,11 @@ async def get_alerts(
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Weather service is temporarily busy, please try again in a moment."
+            )
         raise HTTPException(
             status_code=502,
             detail=f"External weather service responded with error status: {exc.response.status_code}"
@@ -670,6 +965,11 @@ async def get_farmer_advisory(
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Weather service is temporarily busy, please try again in a moment."
+            )
         raise HTTPException(
             status_code=502,
             detail=f"External weather service responded with error status: {exc.response.status_code}"
@@ -757,6 +1057,21 @@ async def get_climate_analysis(
         )
 
     has_coords = latitude is not None and longitude is not None
+    has_location = bool(location and location.strip())
+
+    # Check cache for climate analysis
+    now = time.time()
+    candidate_keys = []
+    if has_coords:
+        candidate_keys.append(f"coords:{round(latitude, 2)}:{round(longitude, 2)}")
+    if has_location:
+        candidate_keys.append(f"loc:{location.strip().lower()}")
+
+    for k in candidate_keys:
+        if k in CLIMATE_CACHE:
+            ts, data = CLIMATE_CACHE[k]
+            if now - ts < CLIMATE_CACHE_TTL:
+                return data
 
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -802,6 +1117,15 @@ async def get_climate_analysis(
                 country = location_info.get("country", "")
                 admin1 = location_info.get("admin1", "")
 
+            # Check cache by resolved coordinates
+            coord_key = f"coords:{round(lat, 2)}:{round(lon, 2)}"
+            if coord_key in CLIMATE_CACHE:
+                ts, data = CLIMATE_CACHE[coord_key]
+                if now - ts < CLIMATE_CACHE_TTL:
+                    if has_location:
+                        CLIMATE_CACHE[f"loc:{location.strip().lower()}"] = (ts, data)
+                    return data
+
             today = date.today()
             current_year = today.year
             current_month = today.month
@@ -827,7 +1151,7 @@ async def get_climate_analysis(
                 "timezone": "auto"
             }
 
-            archive_res = await client.get(archive_url, params=archive_params)
+            archive_res = await fetch_with_retry(client, archive_url, params=archive_params)
             archive_res.raise_for_status()
             archive_data = archive_res.json()
 
@@ -877,7 +1201,7 @@ async def get_climate_analysis(
             anomaly_celsius = round(current_month_avg_temp - five_year_avg_temp, 1)
             full_location = f"{location_name}, {admin1}" if admin1 else f"{location_name}, {country}" if country else location_name
 
-            return {
+            result = {
                 "location": full_location,
                 "current_month": month_name,
                 "current_month_avg_temp": current_month_avg_temp,
@@ -887,9 +1211,23 @@ async def get_climate_analysis(
                 "source": "Open-Meteo Historical Archive"
             }
 
+            # Store in climate cache
+            CLIMATE_CACHE[coord_key] = (now, result)
+            if has_location:
+                CLIMATE_CACHE[f"loc:{location.strip().lower()}"] = (now, result)
+            if location_name:
+                CLIMATE_CACHE[f"loc:{location_name.strip().lower()}"] = (now, result)
+
+            return result
+
     except HTTPException:
         raise
     except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            raise HTTPException(
+                status_code=429,
+                detail="Weather service is temporarily busy, please try again in a moment."
+            )
         raise HTTPException(
             status_code=502,
             detail=f"External archive weather service error: {exc.response.status_code}"
