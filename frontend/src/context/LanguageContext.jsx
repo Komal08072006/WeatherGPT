@@ -29,8 +29,9 @@ export const LanguageProvider = ({ children }) => {
     }
   };
 
-  const formatNumber = (val) => {
-    if (val === null || val === undefined) return '';
+  const formatNumber = (val, fallback = '') => {
+    if (val === null || val === undefined) return fallback;
+    if (typeof val === 'number' && Number.isNaN(val)) return fallback || '--';
     if (selectedLanguage === 'Hindi') {
       return toHindiNumerals(val);
     }

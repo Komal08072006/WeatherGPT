@@ -9,15 +9,17 @@ from dotenv import load_dotenv
 import google.generativeai as genai
 import httpx
 import uvicorn
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sarvam_service import is_sarvam_configured, sarvam_speech_to_text, sarvam_text_to_speech
 
 # Load environment variables
 load_dotenv()
 GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
 OPENWEATHER_API_KEY = (os.getenv("OPENWEATHER_API_KEY") or "").strip()
 GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
+SARVAM_API_KEY = (os.getenv("SARVAM_API_KEY") or "").strip()
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -1384,17 +1386,30 @@ async def get_farmer_advisory(
             raise ValueError("No recommendations generated")
 
     except Exception as exc:
-        print(f"[FARMER ADVISORY ERROR] Exception during advisory generation: {type(exc).__name__}: {exc}")
-        raise HTTPException(
-            status_code=503,
-            detail="Farmer advisory is temporarily unavailable. Please try again later."
-        )
+        print(f"[FARMER ADVISORY FALLBACK] Exception during advisory AI generation: {type(exc).__name__}: {exc}")
+        formatted_recs = [
+            {
+                "title": "Irrigation Schedule Management",
+                "advice": "Postpone scheduled canal/pump irrigation if convective rainfall is forecasted; check soil root-zone moisture before watering."
+            },
+            {
+                "title": "Pesticide & Spraying Protocol",
+                "advice": "Delay chemical pesticide and fertilizer sprays today to prevent active ingredient runoff during rain events."
+            },
+            {
+                "title": "Field Drainage & Crop Protection",
+                "advice": "Ensure proper drainage furrows in standing crops and nurseries to prevent root rot from moisture stagnation."
+            }
+        ]
+        source_label = "Open-Meteo Weather Rules (Fallback)"
+    else:
+        source_label = "Open-Meteo + AI Analysis"
 
     return {
         "location": resolved_location,
         "language": target_lang,
         "recommendations": formatted_recs,
-        "source": "Open-Meteo + AI Analysis",
+        "source": source_label,
     }
 
 
@@ -1595,6 +1610,101 @@ async def get_climate_analysis(
         raise HTTPException(
             status_code=500,
             detail=f"An unexpected error occurred during climate analysis: {str(exc)}"
+        )
+
+
+# --- Sarvam AI Multilingual Voice Integration Routes ---
+
+class SarvamTTSRequest(BaseModel):
+    text: str
+    language: str = "Hindi"
+    speaker: str = None
+
+
+@app.get("/sarvam/status")
+async def get_sarvam_status():
+    """Check Sarvam AI integration availability and supported language list."""
+    configured = is_sarvam_configured()
+    languages = [
+        {"name": "English", "code": "en-IN"},
+        {"name": "Hindi", "code": "hi-IN"},
+        {"name": "Bengali", "code": "bn-IN"},
+        {"name": "Gujarati", "code": "gu-IN"},
+        {"name": "Kannada", "code": "kn-IN"},
+        {"name": "Malayalam", "code": "ml-IN"},
+        {"name": "Marathi", "code": "mr-IN"},
+        {"name": "Odia", "code": "od-IN"},
+        {"name": "Punjabi", "code": "pa-IN"},
+        {"name": "Tamil", "code": "ta-IN"},
+        {"name": "Telugu", "code": "te-IN"}
+    ]
+    return {
+        "enabled": configured,
+        "supported_languages": languages,
+        "message": "Sarvam AI Voice integration active" if configured else "Sarvam API key not configured"
+    }
+
+
+@app.post("/sarvam/stt")
+async def process_speech_to_text(
+    file: UploadFile = File(...),
+    language: str = Form("auto")
+):
+    """
+    Accept recorded audio file upload and transcribe using Sarvam Speech-to-Text.
+    """
+    if not is_sarvam_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Sarvam API key is not configured on backend. Voice input service is unavailable."
+        )
+
+    try:
+        audio_bytes = await file.read()
+        if not audio_bytes:
+            raise HTTPException(status_code=400, detail="Empty audio file uploaded.")
+        
+        result = await sarvam_speech_to_text(
+            audio_bytes=audio_bytes,
+            filename=file.filename or "audio.wav",
+            language=language
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[SARVAM STT ROUTE ERROR] {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing voice input: {str(exc)}"
+        )
+
+
+@app.post("/sarvam/tts")
+async def process_text_to_speech(req: SarvamTTSRequest):
+    """
+    Synthesize text into speech audio using Sarvam Text-to-Speech.
+    """
+    if not is_sarvam_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Sarvam API key is not configured on backend. Voice output service is unavailable."
+        )
+
+    try:
+        result = await sarvam_text_to_speech(
+            text=req.text,
+            language=req.language,
+            speaker=req.speaker
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[SARVAM TTS ROUTE ERROR] {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating voice output: {str(exc)}"
         )
 
 

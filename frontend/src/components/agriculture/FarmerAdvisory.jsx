@@ -40,7 +40,14 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
         const response = await fetch(url);
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          throw new Error(errData.detail || 'Failed to fetch farmer advisory');
+          const errMsg = errData.detail || 'Failed to fetch farmer advisory';
+          if (response.status === 503) {
+            console.warn('[FarmerAdvisory] 503 received, setting error without retrying.');
+            setError(errMsg);
+            setLoading(false);
+            return;
+          }
+          throw new Error(errMsg);
         }
 
         const data = await response.json();

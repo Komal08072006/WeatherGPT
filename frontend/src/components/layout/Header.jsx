@@ -291,8 +291,14 @@ export default function Header({
               <option value="English">ENG (English)</option>
               <option value="Hindi">हिंदी (Hindi)</option>
               <option value="Bengali">বাংলা (Bengali)</option>
-              <option value="Tamil">தமிழ் (Tamil)</option>
+              <option value="Gujarati">ગુજરાતી (Gujarati)</option>
+              <option value="Kannada">ಕನ್ನಡ (Kannada)</option>
+              <option value="Malayalam">മലയാളം (Malayalam)</option>
               <option value="Marathi">मराठी (Marathi)</option>
+              <option value="Odia">ଓଡ଼ିଆ (Odia)</option>
+              <option value="Punjabi">ਪੰਜਾਬੀ (Punjabi)</option>
+              <option value="Tamil">தமிழ் (Tamil)</option>
+              <option value="Telugu">తెలుగు (Telugu)</option>
             </select>
           </div>
 

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Sparkles, ThumbsUp, Share2, Check, ShieldCheck, Tractor, Truck } from 'lucide-react';
+import { Sparkles, ThumbsUp, Share2, Check, ShieldCheck, Tractor, Truck, Volume2, Square } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { playSarvamTTS, stopSarvamTTS } from '../../utils/sarvamAudio';
 
 export default function AIResponse({ responseData, currentQuery }) {
-  const { formatNumber } = useLanguage();
+  const { selectedLanguage, formatNumber } = useLanguage();
   const [liked, setLiked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   if (!responseData) return null;
 
@@ -78,8 +80,35 @@ export default function AIResponse({ responseData, currentQuery }) {
           ))}
         </div>
 
-        {/* Helpful & Share Buttons */}
+        {/* Helpful, Listen & Share Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              if (isPlaying) {
+                stopSarvamTTS();
+                setIsPlaying(false);
+                return;
+              }
+              setIsPlaying(true);
+              await playSarvamTTS({
+                text: responseData.answer,
+                language: selectedLanguage,
+                onEnd: () => setIsPlaying(false),
+                onError: () => setIsPlaying(false)
+              });
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors cursor-pointer ${
+              isPlaying
+                ? 'bg-amber-500 text-white border-amber-600 animate-pulse'
+                : 'bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100'
+            }`}
+            title="Listen to response with Sarvam Text-to-Speech"
+          >
+            {isPlaying ? <Square className="w-3.5 h-3.5 fill-white" /> : <Volume2 className="w-3.5 h-3.5 text-sky-600" />}
+            <span>{isPlaying ? 'Stop' : '🔊 Listen'}</span>
+          </button>
+
           <button
             onClick={() => setLiked(!liked)}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-colors ${
