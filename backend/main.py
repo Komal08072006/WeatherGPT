@@ -557,7 +557,7 @@ async def fetch_weather_data(
                     print(f"[FETCH_WEATHER CACHE] Cache hit for key '{k}'")
                     return data
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             lat = None
             lon = None
             location_name = "Current Location"
@@ -567,22 +567,32 @@ async def fetch_weather_data(
             if has_coords:
                 lat = latitude
                 lon = longitude
+                print(f"[REVERSE_GEOCODE] Received latitude={lat}, longitude={lon}")
                 try:
                     rev_res = await client.get(
                         "https://api.bigdatacloud.net/data/reverse-geocode-client",
-                        params={"latitude": lat, "longitude": lon}
+                        params={"latitude": lat, "longitude": lon, "localityLanguage": "en"},
+                        follow_redirects=True,
                     )
+                    print(f"[REVERSE_GEOCODE] BigDataCloud HTTP status={rev_res.status_code}, response={rev_res.text}")
                     if rev_res.status_code == 200:
                         rev_data = rev_res.json()
                         name = (
                             rev_data.get("city")
                             or rev_data.get("locality")
-                            or rev_data.get("localityInfo", {}).get("administrative", [{}])[0].get("name")
+                            or (
+                                rev_data.get("localityInfo", {})
+                                .get("administrative", [{}])[0]
+                                .get("name")
+                                if rev_data.get("localityInfo", {}).get("administrative")
+                                else None
+                            )
                         )
                         if name:
                             location_name = name
                         country = rev_data.get("countryName", "")
                         admin1 = rev_data.get("principalSubdivision", "")
+                        print(f"[REVERSE_GEOCODE] Resolved location_name={location_name!r}, country={country!r}, admin1={admin1!r}")
                 except Exception as rev_err:
                     print(f"[GEOCODING WARNING] Reverse geocoding failed: {type(rev_err).__name__}: {rev_err}")
             else:

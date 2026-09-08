@@ -63,7 +63,7 @@ export default function Header({
   const handleCurrentLocationClick = () => {
     setGeoError(null);
     if (!navigator.geolocation) {
-      setGeoError("Geolocation is not supported by your browser. Please search for your city instead.");
+      setGeoError("Location access denied — please search for your city instead");
       return;
     }
 
@@ -71,6 +71,7 @@ export default function Header({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setIsGeoLoading(false);
+        console.log("Current Location Geolocation success raw coords:", position.coords.latitude, position.coords.longitude);
         if (onSearch) {
           onSearch({
             latitude: position.coords.latitude,
@@ -81,9 +82,9 @@ export default function Header({
       (error) => {
         setIsGeoLoading(false);
         if (error.code === error.PERMISSION_DENIED) {
-          setGeoError("Location access denied. Please search for your city instead.");
+          setGeoError("Location access denied — please search for your city instead");
         } else {
-          setGeoError("Location access denied. Please search for your city instead.");
+          setGeoError("Location access denied — please search for your city instead");
         }
       },
       { timeout: 10000 }
