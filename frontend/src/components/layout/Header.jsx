@@ -61,8 +61,10 @@ export default function Header({
   }, [searchTerm]);
 
   const handleCurrentLocationClick = () => {
+    console.log('[LOCATION_STATE] [Header.jsx] "Current Location" button clicked by user');
     setGeoError(null);
     if (!navigator.geolocation) {
+      console.warn('[LOCATION_STATE] [Header.jsx] navigator.geolocation unavailable');
       setGeoError("Location access denied — please search for your city instead");
       return;
     }
@@ -71,7 +73,7 @@ export default function Header({
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setIsGeoLoading(false);
-        console.log("Current Location Geolocation success raw coords:", position.coords.latitude, position.coords.longitude);
+        console.log("[LOCATION_STATE] [Header.jsx] Geolocation success raw coords:", position.coords.latitude, position.coords.longitude);
         if (onSearch) {
           onSearch({
             latitude: position.coords.latitude,
@@ -81,6 +83,7 @@ export default function Header({
       },
       (error) => {
         setIsGeoLoading(false);
+        console.warn("[LOCATION_STATE] [Header.jsx] Geolocation error:", error);
         if (error.code === error.PERMISSION_DENIED) {
           setGeoError("Location access denied — please search for your city instead");
         } else {
@@ -92,6 +95,7 @@ export default function Header({
   };
 
   const handleSelectLocation = (loc) => {
+    console.log('[LOCATION_STATE] [Header.jsx] Location selected from dropdown:', loc);
     setGeoError(null);
     if (onSearch) {
       onSearch(loc.name);
@@ -103,6 +107,7 @@ export default function Header({
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setGeoError(null);
+    console.log('[LOCATION_STATE] [Header.jsx] Search submitted with term:', searchTerm);
     if (searchTerm.trim() && onSearch) {
       if (suggestions.length > 0) {
         handleSelectLocation(suggestions[0]);

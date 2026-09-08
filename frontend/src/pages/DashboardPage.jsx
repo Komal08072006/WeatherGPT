@@ -28,14 +28,18 @@ export default function DashboardPage({
   const [realWeather, setRealWeather] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const weatherRequestIdRef = React.useRef(0);
 
   const searchLocation = currentLocation?.searchName || (currentLocation?.name ? currentLocation.name.split(',')[0].trim() : 'Lucknow');
   const displayLocation = currentLocation?.name || 'Lucknow';
 
-  const fetchWeather = async () => {
+  const fetchWeather = async (externalSignal = null) => {
+    weatherRequestIdRef.current += 1;
+    const currentRequestId = weatherRequestIdRef.current;
+    console.log(`[LOCATION_STATE] [DashboardPage.jsx] fetchWeather initiated (reqId #${currentRequestId}) for currentLocation:`, currentLocation);
+
     setLoading(true);
     setError(null);
-    setRealWeather(null);
 
     const maxAutoRetries = 2;
     const retryDelay = 1500;
@@ -45,21 +49,35 @@ export default function DashboardPage({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
 
+      if (externalSignal) {
+        if (externalSignal.aborted) {
+          console.warn(`[LOCATION_STATE] [DashboardPage.jsx] fetchWeather (reqId #${currentRequestId}) cancelled prior to attempt`);
+          return;
+        }
+        externalSignal.addEventListener('abort', () => controller.abort());
+      }
+
       try {
         const url = (currentLocation?.latitude != null && currentLocation?.longitude != null)
           ? `${API_BASE_URL}/weather?latitude=${currentLocation.latitude}&longitude=${currentLocation.longitude}`
           : `${API_BASE_URL}/weather?location=${encodeURIComponent(searchLocation)}`;
 
-        console.log(`[DashboardPage] Requesting weather URL (attempt ${attempt + 1}/${maxAutoRetries + 1}):`, url);
+        console.log(`[LOCATION_STATE] [DashboardPage.jsx] Requesting weather URL (reqId #${currentRequestId}, attempt ${attempt + 1}/${maxAutoRetries + 1}):`, url);
         const res = await fetch(url, { signal: controller.signal });
-        console.log('[DashboardPage] Weather response status:', res.status);
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.detail || `Failed to fetch weather for ${displayLocation}`);
         }
         const data = await res.json();
-        console.log('[DashboardPage] Parsed weather JSON:', data);
+
+        if (currentRequestId !== weatherRequestIdRef.current) {
+          console.warn(`[LOCATION_STATE] [DashboardPage.jsx] STALE RACE PREVENTED: Ignoring response from reqId #${currentRequestId} for location "${data.location}" (latest active request is #${weatherRequestIdRef.current})`);
+          clearTimeout(timeoutId);
+          return;
+        }
+
+        console.log(`[LOCATION_STATE] [DashboardPage.jsx] Setting realWeather state from reqId #${currentRequestId}:`, data.location);
         setRealWeather(data);
         setError(null);
         clearTimeout(timeoutId);
@@ -67,26 +85,36 @@ export default function DashboardPage({
         return;
       } catch (err) {
         clearTimeout(timeoutId);
+        if (currentRequestId !== weatherRequestIdRef.current) {
+          console.warn(`[LOCATION_STATE] [DashboardPage.jsx] Ignoring error from stale reqId #${currentRequestId} (latest active request is #${weatherRequestIdRef.current})`);
+          return;
+        }
         lastErrorMsg = err.name === 'AbortError'
-          ? 'Weather fetch timed out. Please check backend network connection.'
+          ? 'Weather fetch timed out or was cancelled.'
           : (err.message || 'Failed to fetch weather data');
         console.warn(`[DashboardPage] Weather fetch attempt ${attempt + 1} failed:`, lastErrorMsg);
 
-        if (attempt < maxAutoRetries) {
+        if (attempt < maxAutoRetries && !externalSignal?.aborted) {
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
         }
       }
     }
 
-    console.error('[DashboardPage] All weather fetch retries exhausted:', lastErrorMsg);
-    setError(lastErrorMsg);
-    setLoading(false);
+    if (currentRequestId === weatherRequestIdRef.current) {
+      console.error('[DashboardPage] All weather fetch retries exhausted:', lastErrorMsg);
+      setError(lastErrorMsg);
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     setRealWeather(null);
     setError(null);
-    fetchWeather();
+    fetchWeather(controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, [searchLocation, currentLocation?.latitude, currentLocation?.longitude]);
 
   const onManualRefresh = () => {

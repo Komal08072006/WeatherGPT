@@ -44,6 +44,10 @@ function ExistingDashboard() {
   const [theme, setTheme] = useState('light');
 
   React.useEffect(() => {
+    console.log('[LOCATION_STATE] [App.jsx] Mounted with initial currentLocation:', currentLocation);
+  }, []);
+
+  React.useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {
@@ -73,8 +77,14 @@ function ExistingDashboard() {
     return 'Lucknow';
   };
 
+  const searchRequestIdRef = React.useRef(0);
+
   const handleSearch = async (locationQuery) => {
     if (!locationQuery) return;
+    searchRequestIdRef.current += 1;
+    const currentRequestId = searchRequestIdRef.current;
+    console.log(`[LOCATION_STATE] [App.jsx] handleSearch initiated (reqId #${currentRequestId}) with query:`, locationQuery);
+
     setIsSearchLoading(true);
     setSearchError(null);
 
@@ -103,6 +113,12 @@ function ExistingDashboard() {
         }
 
         const data = await response.json();
+
+        if (currentRequestId !== searchRequestIdRef.current) {
+          console.warn(`[LOCATION_STATE] [App.jsx] STALE RACE PREVENTED: Ignoring response from reqId #${currentRequestId} for "${data.location}" (latest active request is #${searchRequestIdRef.current})`);
+          return;
+        }
+
         const curr = data.weather?.current || {};
 
         const tempVal = curr.temperature_2m != null ? Math.round(curr.temperature_2m) : mockCurrentWeather.temperature;
@@ -115,6 +131,13 @@ function ExistingDashboard() {
           : data.country
           ? `${data.location}, ${data.country}`
           : data.location;
+
+        console.log(`[LOCATION_STATE] [App.jsx] Setting currentLocation state from reqId #${currentRequestId}:`, {
+          name: formattedDisplayName,
+          latitude: data.coordinates?.latitude,
+          longitude: data.coordinates?.longitude,
+          source: 'handleSearch'
+        });
 
         setCurrentLocation({
           id: data.location.toLowerCase(),
@@ -159,6 +182,10 @@ function ExistingDashboard() {
         setIsSearchLoading(false);
         return;
       } catch (err) {
+        if (currentRequestId !== searchRequestIdRef.current) {
+          console.warn(`[LOCATION_STATE] [App.jsx] Ignoring search error from stale reqId #${currentRequestId} (latest active request is #${searchRequestIdRef.current})`);
+          return;
+        }
         lastErrorMsg = err.message || 'Failed to fetch weather data';
         console.warn(`[App handleSearch] Attempt ${attempt + 1} failed:`, lastErrorMsg);
         if (attempt < maxAutoRetries) {
@@ -167,8 +194,10 @@ function ExistingDashboard() {
       }
     }
 
-    setSearchError(lastErrorMsg);
-    setIsSearchLoading(false);
+    if (currentRequestId === searchRequestIdRef.current) {
+      setSearchError(lastErrorMsg);
+      setIsSearchLoading(false);
+    }
   };
 
   const handleRefresh = () => {
