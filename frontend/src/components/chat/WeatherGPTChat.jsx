@@ -513,7 +513,7 @@ export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) 
                                   <IconComp className={`w-3.5 h-3.5 ${card.color}`} />
                                   <span className="text-[10px] text-slate-500 font-medium">{card.label}</span>
                                 </div>
-                                <div className="text-xs font-bold text-slate-800">{card.value}</div>
+                                <div className="text-xs font-bold text-slate-800">{formatNumber(card.value)}</div>
                               </div>
                             );
                           })}

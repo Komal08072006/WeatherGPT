@@ -4,7 +4,7 @@ import { API_BASE_URL } from '../../config/api';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDetailed }) {
-  const { selectedLanguage, t } = useLanguage();
+  const { selectedLanguage, t, formatNumber } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [advisory, setAdvisory] = useState(null);
@@ -80,7 +80,7 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                AI Farmer Advisory
+                {t('farmerAdvisory.title')}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {displayLocation}
@@ -99,7 +99,7 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
         {loading && (
           <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-500 dark:text-slate-400">
             <Loader2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 animate-spin" />
-            <span className="text-xs font-medium">Generating agricultural advisory...</span>
+            <span className="text-xs font-medium">{t('common.loading')}</span>
           </div>
         )}
 
@@ -109,10 +109,10 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
             <span>{error}</span>
             <button
               onClick={fetchAdvisory}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shrink-0"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors shrink-0 cursor-pointer"
             >
               <RefreshCw className="w-3 h-3" />
-              <span>Retry</span>
+              <span>{t('common.retry')}</span>
             </button>
           </div>
         )}
@@ -122,7 +122,7 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
           <div className="space-y-2.5">
             {recommendations.length === 0 ? (
               <div className="text-xs text-slate-500 dark:text-slate-400 text-center py-4">
-                No recommendations available.
+                {t('farmerAdvisory.noAdvisoryData')}
               </div>
             ) : (
               recommendations.map((rec, index) => (
@@ -134,10 +134,10 @@ export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDe
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                     <div>
                       <h4 className="font-bold text-slate-800 dark:text-slate-100 leading-snug">
-                        {rec.title}
+                        {formatNumber(rec.title)}
                       </h4>
                       <p className="text-slate-600 dark:text-slate-300 text-[11px] mt-0.5 leading-relaxed">
-                        {rec.advice}
+                        {formatNumber(rec.advice)}
                       </p>
                     </div>
                   </div>

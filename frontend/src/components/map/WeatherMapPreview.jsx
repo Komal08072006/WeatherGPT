@@ -3,8 +3,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { Map, Layers, Radio, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFullPage = false }) {
+  const { t, formatNumber } = useLanguage();
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
@@ -231,7 +233,7 @@ export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFu
             <Map className="w-4 h-4" />
           </div>
           <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-            Live Rain Radar & Interactive Map
+            {t('maps.title')}
           </h3>
         </div>
 
@@ -259,7 +261,7 @@ export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFu
         {isLoading && (
           <div className="absolute inset-0 z-20 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-2">
             <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
-            <span className="text-xs font-medium">Loading map & radar tiles...</span>
+            <span className="text-xs font-medium">{t('common.loading')}</span>
           </div>
         )}
 
@@ -285,7 +287,7 @@ export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFu
             </span>
           </div>
           <span className="text-slate-400 font-mono">
-            {lat.toFixed(4)}° N, {lon.toFixed(4)}° E
+            {formatNumber(lat.toFixed(4))}° N, {formatNumber(lon.toFixed(4))}° E
           </span>
         </div>
       </div>
@@ -300,7 +302,7 @@ export default function WeatherMapPreview({ currentLocation, onOpenFullMap, isFu
             onClick={onOpenFullMap}
             className="font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 hover:translate-x-0.5 transition-transform"
           >
-            <span>Full Map View</span>
+            <span>{t('common.viewDetails')}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         )}

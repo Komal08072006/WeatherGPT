@@ -3,6 +3,13 @@ import { translations } from '../translations/translations';
 
 const LanguageContext = createContext();
 
+export const toHindiNumerals = (strOrNum) => {
+  if (strOrNum === null || strOrNum === undefined) return '';
+  const str = String(strOrNum);
+  const devanagariDigits = ['०', '१', '२', '३', '४', '५', '६', '७', '८', '९'];
+  return str.replace(/[0-9]/g, (digit) => devanagariDigits[parseInt(digit, 10)]);
+};
+
 export const LanguageProvider = ({ children }) => {
   const [selectedLanguage, setSelectedLanguageState] = useState(() => {
     try {
@@ -20,6 +27,14 @@ export const LanguageProvider = ({ children }) => {
     } catch (e) {
       console.warn('Failed to persist language in localStorage', e);
     }
+  };
+
+  const formatNumber = (val) => {
+    if (val === null || val === undefined) return '';
+    if (selectedLanguage === 'Hindi') {
+      return toHindiNumerals(val);
+    }
+    return String(val);
   };
 
   const t = (keyPath, fallback = '') => {
@@ -62,7 +77,7 @@ export const LanguageProvider = ({ children }) => {
   };
 
   return (
-    <LanguageContext.Provider value={{ selectedLanguage, setSelectedLanguage, t }}>
+    <LanguageContext.Provider value={{ selectedLanguage, setSelectedLanguage, t, formatNumber, toHindiNumerals }}>
       {children}
     </LanguageContext.Provider>
   );

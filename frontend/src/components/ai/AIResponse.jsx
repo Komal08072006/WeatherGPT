@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Sparkles, ThumbsUp, Share2, Check, ShieldCheck, Tractor, Truck } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function AIResponse({ responseData, currentQuery }) {
+  const { formatNumber } = useLanguage();
   const [liked, setLiked] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -25,13 +27,13 @@ export default function AIResponse({ responseData, currentQuery }) {
         </div>
 
         <span className="text-[10px] text-slate-400 font-mono">
-          Generated in {responseData.generatedTime}
+          Generated in {formatNumber(responseData.generatedTime)}
         </span>
       </div>
 
       {/* Main Answer Body */}
       <div className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium mb-4 bg-slate-50/60 p-3 rounded-xl border border-slate-200/50">
-        {responseData.answer}
+        {formatNumber(responseData.answer)}
       </div>
 
       {/* Two Column Impact Cards: Agro & Urban Logistics */}
@@ -43,7 +45,7 @@ export default function AIResponse({ responseData, currentQuery }) {
             <span>Agricultural Impact</span>
           </div>
           <p className="text-emerald-950/80 text-[11px] leading-relaxed">
-            {responseData.agriculturalImpact}
+            {formatNumber(responseData.agriculturalImpact)}
           </p>
         </div>
 
@@ -54,7 +56,7 @@ export default function AIResponse({ responseData, currentQuery }) {
             <span>Urban Logistics</span>
           </div>
           <p className="text-blue-950/80 text-[11px] leading-relaxed">
-            {responseData.urbanLogistics}
+            {formatNumber(responseData.urbanLogistics)}
           </p>
         </div>
       </div>

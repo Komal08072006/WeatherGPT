@@ -1,7 +1,9 @@
 import React from 'react';
 import { TriangleAlert, Clock, MapPin, Share2, FileText } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
+  const { t, formatNumber } = useLanguage();
   if (!alertData) return null;
 
   return (
@@ -18,7 +20,7 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
         </div>
 
         <span className="text-[10px] font-bold bg-amber-500 text-white px-2.5 py-1 rounded-full shadow-2xs">
-          {alertData.badge}
+          {formatNumber(alertData.badge)}
         </span>
       </div>
 
@@ -30,7 +32,7 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
           </span>
           <div className="flex items-center gap-1.5 font-bold text-amber-950 dark:text-amber-100">
             <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span>{alertData.expectedWindow}</span>
+            <span>{formatNumber(alertData.expectedWindow)}</span>
           </div>
         </div>
 
@@ -51,7 +53,7 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
           Meteorological Diagnostic
         </span>
         <p className="text-xs text-amber-950/90 dark:text-amber-200 leading-relaxed italic bg-white/40 dark:bg-slate-900/40 p-2.5 rounded-lg border border-amber-200/40 dark:border-amber-900/30">
-          "{alertData.diagnostic}"
+          "{formatNumber(alertData.diagnostic)}"
         </p>
       </div>
 
@@ -59,7 +61,7 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
       <div className="flex items-center justify-end gap-2 text-xs">
         <button
           onClick={onShare}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-semibold hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors shadow-2xs"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-semibold hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span>Share Alert</span>
@@ -67,10 +69,10 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
 
         <button
           onClick={onViewAdvisory}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs transition-colors"
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs transition-colors cursor-pointer"
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>View Full Advisory</span>
+          <span>{t('common.viewDetails')}</span>
         </button>
       </div>
     </div>

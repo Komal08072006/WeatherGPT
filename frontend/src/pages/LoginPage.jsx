@@ -224,7 +224,7 @@ export default function LoginPage() {
           {isSignUp && (
             <div>
               <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Full Name
+                {t('auth.nameLabel')}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -244,7 +244,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Email Address
+              {t('auth.emailLabel')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -263,7 +263,7 @@ export default function LoginPage() {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-              Password
+              {t('auth.passwordLabel')}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -290,7 +290,7 @@ export default function LoginPage() {
           {isSignUp && (
             <div>
               <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Confirm Password
+                {t('auth.confirmPasswordLabel')}
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -320,7 +320,7 @@ export default function LoginPage() {
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                {isSignUp ? 'Create Account' : 'Sign In'}
+                {isSignUp ? t('auth.signUpBtn') : t('auth.signInBtn')}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -334,14 +334,14 @@ export default function LoginPage() {
             onClick={handleFillDemo}
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/20 text-cyan-300 text-xs font-medium transition-colors cursor-pointer"
           >
-            <KeyRound className="w-3.5 h-3.5" /> Fill Example Credentials
+            <KeyRound className="w-3.5 h-3.5" /> {t('auth.fillDemo')}
           </button>
         </div>
 
         {/* Social Authentication Options */}
         <div className="mt-5 pt-4 border-t border-white/10 text-center">
           <p className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-3">
-            Or continue with
+            {t('auth.orContinueWith')}
           </p>
           <button
             type="button"
@@ -355,7 +355,7 @@ export default function LoginPage() {
               <path fill="#FBBC05" d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3s.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12.3 0 15s.7 5.3 1.9 7.7l3.7-2.9c-.2-.7-.4-1.5-.4-2.3z"/>
               <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.1-6.4-5.2L1.9 16C3.7 19.7 7.5 23 12 23z"/>
             </svg>
-            Continue with Google
+            {t('auth.continueWithGoogle')}
           </button>
         </div>
 
@@ -363,24 +363,24 @@ export default function LoginPage() {
         <div className="mt-6 pt-4 border-t border-white/10 text-center text-xs text-slate-400">
           {isSignUp ? (
             <p>
-              Already have an account?{' '}
+              {t('auth.alreadyAccount')}{' '}
               <button
                 type="button"
                 onClick={() => { setIsSignUp(false); setErrorMessage(''); }}
                 className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors cursor-pointer"
               >
-                Sign In
+                {t('auth.signInBtn')}
               </button>
             </p>
           ) : (
             <p>
-              Don't have an account?{' '}
+              {t('auth.noAccount')}{' '}
               <button
                 type="button"
                 onClick={() => { setIsSignUp(true); setErrorMessage(''); }}
                 className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors cursor-pointer"
               >
-                Sign Up
+                {t('auth.signUpBtn')}
               </button>
             </p>
           )}

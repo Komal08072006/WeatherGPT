@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Camera, Upload, Link as LinkIcon, Check, AlertCircle, Loader2, Info } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function EditProfileModal({ isOpen, onClose }) {
   const { currentUser, userProfile, updateUserProfileData } = useAuth();
+  const { t } = useLanguage();
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -101,7 +103,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
             <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950/80 border border-sky-200 dark:border-sky-800/60 text-sky-600 dark:text-sky-400 flex items-center justify-center">
               <User className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Edit Profile</h2>
+            <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">{t('profile.title')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -126,7 +128,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
           {success && (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-xl text-xs font-medium text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
               <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Profile updated successfully!</span>
+              <span>{t('profile.saved')}</span>
             </div>
           )}
 

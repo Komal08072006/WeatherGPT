@@ -139,14 +139,14 @@ export default function Header({
             ) : (
               <Navigation className="w-3 h-3 text-emerald-600 dark:text-emerald-400 fill-emerald-600 dark:fill-emerald-400" />
             )}
-            <span>{isGeoLoading ? 'Getting location...' : 'Current Location'}</span>
+            <span>{isGeoLoading ? t('header.gettingLocation') : t('header.currentLocation')}</span>
           </button>
 
           {/* Dropdown Menu for Location Selector */}
           {showLocationDropdown && (
             <div className="absolute top-full left-0 mt-1.5 w-72 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 py-1 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
               <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                <span>Select Location</span>
+                <span>{t('header.selectLocation')}</span>
                 {isSearchingSuggestions && <Loader2 className="w-3 h-3 text-sky-500 animate-spin" />}
               </div>
               {suggestions.length > 0 ? (
@@ -176,7 +176,7 @@ export default function Header({
                 ))
               ) : (
                 <div className="px-3 py-3 text-xs text-slate-400 text-center italic">
-                  Type in search bar to search cities
+                  {t('header.typeToSearch')}
                 </div>
               )}
             </div>
@@ -219,7 +219,7 @@ export default function Header({
           {showSuggestions && searchTerm.trim() && (
             <div className="absolute top-full left-0 right-0 mt-1.5 bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-slate-200 dark:border-slate-800 py-1 z-50 animate-in fade-in duration-150">
               <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
-                <span>Matching Locations</span>
+                <span>{t('header.matchingLocations')}</span>
                 {isSearchingSuggestions && <Loader2 className="w-3 h-3 text-sky-500 animate-spin" />}
               </div>
               {suggestions.length > 0 ? (
@@ -246,7 +246,7 @@ export default function Header({
                 ))
               ) : (
                 <div className="px-3 py-3 text-xs text-slate-400 text-center italic">
-                  No matching locations found
+                  {t('header.noMatchingLocations')}
                 </div>
               )}
             </div>
@@ -264,9 +264,9 @@ export default function Header({
           {/* Live Status Badge */}
           <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-medium text-slate-700 dark:text-slate-200">Live</span>
+            <span className="font-medium text-slate-700 dark:text-slate-200">{t('header.live')}</span>
             <span className="text-slate-300 dark:text-slate-600">•</span>
-            <span className="text-slate-400 text-[11px]">Updated live</span>
+            <span className="text-slate-400 text-[11px]">{t('header.updatedLive')}</span>
           </div>
 
           {/* Notification Bell */}

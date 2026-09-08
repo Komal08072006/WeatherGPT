@@ -1,14 +1,16 @@
 import React from 'react';
 import { TrendingUp, CloudRain } from 'lucide-react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function ClimateInsight({ climateData }) {
+  const { t, formatNumber } = useLanguage();
   if (!climateData) return null;
 
   const anomaly = climateData.anomaly_celsius ?? 0.0;
   const isPositive = anomaly > 0;
   const isNegative = anomaly < 0;
-  const anomalyFormatted = `${isPositive ? '+' : ''}${anomaly.toFixed(1)}°C`;
+  const anomalyFormatted = `${isPositive ? '+' : ''}${formatNumber(anomaly.toFixed(1))}°C`;
 
   const anomalyBadgeStyle = isPositive
     ? 'text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800/60'
@@ -31,7 +33,7 @@ export default function ClimateInsight({ climateData }) {
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-                Climate Insight
+                {t('climate.insightsTitle')}
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 Historical monthly temperature &amp; precipitation analysis for {climateData.location}
@@ -55,7 +57,7 @@ export default function ClimateInsight({ climateData }) {
             </span>
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-            Current month-to-date average temperature of <span className="font-semibold text-slate-800 dark:text-slate-100">{climateData.current_month_avg_temp}°C</span> compared to the 5-year historical average of <span className="font-semibold text-slate-800 dark:text-slate-100">{climateData.five_year_avg_temp}°C</span> for {climateData.current_month}.
+            Current month-to-date average temperature of <span className="font-semibold text-slate-800 dark:text-slate-100">{formatNumber(climateData.current_month_avg_temp)}°C</span> compared to the 5-year historical average of <span className="font-semibold text-slate-800 dark:text-slate-100">{formatNumber(climateData.five_year_avg_temp)}°C</span> for {climateData.current_month}.
           </p>
         </div>
 
@@ -63,7 +65,7 @@ export default function ClimateInsight({ climateData }) {
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
             <span>5-YEAR TEMPERATURE TREND ({climateData.current_month?.toUpperCase()})</span>
-            <span className="text-sky-600 dark:text-sky-400 font-bold">Past 5 Years Avg ({climateData.five_year_avg_temp}°C)</span>
+            <span className="text-sky-600 dark:text-sky-400 font-bold">Past 5 Years Avg ({formatNumber(climateData.five_year_avg_temp)}°C)</span>
           </div>
 
           <div className="h-44 w-full pt-1">
@@ -74,8 +76,8 @@ export default function ClimateInsight({ climateData }) {
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} unit="°C" domain={['auto', 'auto']} />
                 <Tooltip
                   contentStyle={{ backgroundColor: '#0f172a', borderRadius: '10px', fontSize: '11px', borderColor: '#334155', color: '#f8fafc' }}
-                  formatter={(value) => [`${value}°C`, 'Avg Temperature']}
-                  labelFormatter={(label) => `Year ${label}`}
+                  formatter={(value) => [`${formatNumber(value)}°C`, 'Avg Temperature']}
+                  labelFormatter={(label) => `Year ${formatNumber(label)}`}
                 />
                 <Line
                   type="monotone"
@@ -97,7 +99,7 @@ export default function ClimateInsight({ climateData }) {
             <CloudRain className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
             <span className="font-medium">5-Year Monthly Total Precipitation Avg ({climateData.current_month})</span>
           </div>
-          <span className="font-bold text-sky-700 dark:text-sky-300">{avgMonthlyPrecip} mm</span>
+          <span className="font-bold text-sky-700 dark:text-sky-300">{formatNumber(avgMonthlyPrecip)} mm</span>
         </div>
       </div>
 

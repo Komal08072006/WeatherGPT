@@ -49,7 +49,7 @@ function SceneSection({ children, progressRange }) {
 export default function LandingPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const { t } = useLanguage();
+  const { t, formatNumber } = useLanguage();
   const videoRef = useRef(null);
   const [videoSrc, setVideoSrc] = React.useState('/bg-video.mp4');
 
@@ -154,17 +154,17 @@ export default function LandingPage() {
         {/* Scene 1 */}
         <SceneSection progressRange={heroRange}>
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-semibold tracking-wider uppercase mb-6 backdrop-blur-md">
-            <Sparkles className="w-3.5 h-3.5" /> Next Generation Atmospheric AI
+            <Sparkles className="w-3.5 h-3.5" /> {t('landing.tagline')}
           </div>
           <h1 className="text-6xl sm:text-8xl md:text-9xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white via-slate-100 to-slate-400 drop-shadow-2xl mb-6">
             WeatherGPT
           </h1>
           <p className="text-2xl sm:text-3xl md:text-4xl font-light text-cyan-200/90 tracking-wide font-sans">
-            Weather, but smarter.
+            {t('landing.weatherSmarter')}
           </p>
 
           <div className="absolute -bottom-24 left-1/2 -translate-x-1/2 flex flex-col items-center text-slate-400/80 text-xs tracking-widest uppercase gap-2 animate-bounce pointer-events-none">
-            <span>Scroll to explore</span>
+            <span>{t('landing.scrollToExplore')}</span>
             <ChevronDown className="w-4 h-4" />
           </div>
         </SceneSection>
@@ -172,45 +172,45 @@ export default function LandingPage() {
         {/* Scene 2 */}
         <SceneSection progressRange={standardRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-slate-100 leading-tight">
-            Weather isn't just a forecast.
+            {t('landing.scene2')}
           </h2>
         </SceneSection>
 
         {/* Scene 3 */}
         <SceneSection progressRange={standardRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-200 via-white to-cyan-200 leading-tight">
-            It's about knowing what's coming.
+            {t('landing.scene3')}
           </h2>
         </SceneSection>
 
         {/* Scene 4 */}
         <SceneSection progressRange={standardRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight mb-4">
-            Ask questions.
+            {t('landing.scene4Title')}
           </h2>
           <p className="text-3xl sm:text-5xl md:text-6xl font-light text-cyan-300/90 tracking-wide">
-            Get intelligent answers.
+            {t('landing.scene4Sub')}
           </p>
         </SceneSection>
 
         {/* Scene 5 */}
         <SceneSection progressRange={standardRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-300 via-blue-300 to-indigo-300 leading-tight">
-            Forecasts. Alerts. Weather intelligence.
+            {t('landing.scene5')}
           </h2>
         </SceneSection>
 
         {/* Scene 6 */}
         <SceneSection progressRange={standardRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight">
-            Your weather. Your questions. <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">One AI.</span>
+            {t('landing.scene6Title')} <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">{t('landing.scene6Span')}</span>
           </h2>
         </SceneSection>
 
         {/* Final Scene */}
         <SceneSection progressRange={finalRange}>
           <h2 className="text-4xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-white leading-tight mb-10">
-            Ready to experience WeatherGPT?
+            {t('landing.readyTitle')}
           </h2>
 
           <motion.button
@@ -230,7 +230,7 @@ export default function LandingPage() {
 
       {/* Simple Clean Footer */}
       <footer className="relative z-10 py-8 px-6 text-center text-slate-500 text-sm border-t border-white/5 bg-slate-950/60 backdrop-blur-md">
-        © {new Date().getFullYear()} WeatherGPT Inc. All rights reserved.
+        © {formatNumber(new Date().getFullYear())} WeatherGPT Inc. {t('landing.rights')}
       </footer>
     </div>
   );

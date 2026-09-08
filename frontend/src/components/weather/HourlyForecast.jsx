@@ -18,8 +18,10 @@ import {
   Tooltip,
   CartesianGrid
 } from 'recharts';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function HourlyForecast({ hourlyData = [] }) {
+  const { t, formatNumber } = useLanguage();
   const [selectedHour, setSelectedHour] = useState(null);
 
   const activeHour = selectedHour || (hourlyData.length > 0 ? hourlyData[0].time : '');
@@ -48,10 +50,10 @@ export default function HourlyForecast({ hourlyData = [] }) {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white/95 border border-slate-200 rounded-xl p-2.5 shadow-lg text-xs space-y-1">
-          <p className="font-bold text-slate-800">{label}</p>
+          <p className="font-bold text-slate-800">{formatNumber(label)}</p>
           {payload.map((entry, index) => (
             <p key={index} className="font-medium" style={{ color: entry.color }}>
-              {entry.name}: {entry.value}{entry.unit || ''}
+              {entry.name}: {formatNumber(entry.value)}{entry.unit || ''}
             </p>
           ))}
         </div>
@@ -69,7 +71,7 @@ export default function HourlyForecast({ hourlyData = [] }) {
             <Clock className="w-4 h-4" />
           </div>
           <h2 className="text-base font-bold text-slate-800 dark:text-slate-100 tracking-tight">
-            Hourly Forecast & Rain Trajectory
+            {t('dashboard.hourlyTitle')}
           </h2>
         </div>
 
@@ -81,7 +83,7 @@ export default function HourlyForecast({ hourlyData = [] }) {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 bg-sky-200 dark:bg-sky-700/60 rounded-xs"></span>
-            <span>Precip Probability</span>
+            <span>{t('forecast.precipChance')}</span>
           </div>
         </div>
       </div>
@@ -100,12 +102,12 @@ export default function HourlyForecast({ hourlyData = [] }) {
                   : 'bg-slate-50/50 dark:bg-slate-800/50 border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600'
               }`}
             >
-              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{item.time}</span>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">{formatNumber(item.time)}</span>
               <div className="my-0.5">{renderWeatherIcon(item.icon)}</div>
-              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.temp}°</span>
+              <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{formatNumber(item.temp)}°</span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{item.condition}</span>
               <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-100/70 dark:bg-sky-950/80 px-1.5 py-0.2 rounded-full">
-                {item.precip}%
+                {formatNumber(item.precip)}%
               </span>
             </button>
           );

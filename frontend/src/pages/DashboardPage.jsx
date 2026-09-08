@@ -9,6 +9,7 @@ import FarmerAdvisory from '../components/agriculture/FarmerAdvisory';
 import ClimateInsight from '../components/climate/ClimateInsight';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function DashboardPage({
   currentLocation,
@@ -23,6 +24,7 @@ export default function DashboardPage({
   handleRefresh,
   onNavigate
 }) {
+  const { t, formatNumber } = useLanguage();
   const [realWeather, setRealWeather] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -308,9 +310,9 @@ export default function DashboardPage({
           <span>{error}</span>
           <button
             onClick={fetchWeather}
-            className="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700"
+            className="px-3 py-1 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 cursor-pointer"
           >
-            Retry
+            {t('common.retry')}
           </button>
         </div>
       )}
@@ -320,7 +322,7 @@ export default function DashboardPage({
         <div className="space-y-6 animate-pulse">
           <div className="h-64 bg-slate-200 rounded-2xl w-full flex flex-col items-center justify-center gap-2">
             <Loader2 className="w-8 h-8 text-sky-600 animate-spin" />
-            <span className="text-xs text-slate-500 font-medium">Fetching real weather data...</span>
+            <span className="text-xs text-slate-500 font-medium">{t('common.loading')}</span>
           </div>
           <div className="h-48 bg-slate-200 rounded-2xl w-full"></div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

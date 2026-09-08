@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
-  const { t } = useLanguage();
+  const { t, formatNumber } = useLanguage();
   const [alertState, setAlertState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -70,7 +70,7 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
       {loading ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 shadow-xs">
           <Loader2 className="w-6 h-6 text-sky-600 dark:text-sky-400 animate-spin" />
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Evaluating atmospheric thresholds for {displayLocation}...</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('common.loading')}</span>
         </div>
       ) : error ? (
         <div className="bg-red-50 dark:bg-red-950/80 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-2xl p-4 text-xs font-medium shadow-xs">
@@ -81,9 +81,9 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           alertData={{
             title: alertState.title,
             badge: `${alertState.severity} Alert • ${alertState.source}`,
-            expectedWindow: alertState.expected_window,
+            expectedWindow: formatNumber(alertState.expected_window),
             affectedTract: alertState.full_location || alertState.location,
-            diagnostic: `Expected max daily precipitation: ${alertState.precipitation_expected_mm} mm (Peak probability: ${alertState.precipitation_probability}%).`
+            diagnostic: `Expected max daily precipitation: ${formatNumber(alertState.precipitation_expected_mm)} mm (Peak probability: ${formatNumber(alertState.precipitation_probability)}%).`
           }}
           onShare={() => alert('Alert details copied to clipboard')}
           onViewAdvisory={() => alert(`View advisory for ${alertState.location}`)}
@@ -96,7 +96,7 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
                 <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
               <h3 className="text-base font-bold text-emerald-950 dark:text-emerald-100 tracking-tight">
-                No Active Weather Warnings
+                {t('alerts.noActiveAlerts')}
               </h3>
             </div>
             <span className="text-[10px] font-bold bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-2xs">
@@ -107,10 +107,10 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xs p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40 text-xs text-slate-700 dark:text-slate-200 space-y-2 mb-4">
             <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-200 font-semibold">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>No active weather alerts for {alertState?.full_location || displayLocation} right now.</span>
+              <span>{t('alerts.noActiveAlerts')} ({alertState?.full_location || displayLocation}).</span>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-6">
-              Expected daily precipitation is {alertState?.precipitation_expected_mm || 0} mm, which is below severe weather warning thresholds.
+              Expected daily precipitation is {formatNumber(alertState?.precipitation_expected_mm || 0)} mm, which is below severe weather warning thresholds.
             </p>
           </div>
 

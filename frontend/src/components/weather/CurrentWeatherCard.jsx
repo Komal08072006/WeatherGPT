@@ -11,13 +11,28 @@ import {
   ArrowRight
 } from 'lucide-react';
 import WeatherMetric from './WeatherMetric';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function CurrentWeatherCard({ data, onExploreAIChat }) {
+  const { t, formatNumber } = useLanguage();
   if (!data) return null;
 
-  const condition = data.condition || 'Clear';
-  const isRainy = condition.toLowerCase().includes('rain');
-  const WeatherIcon = isRainy ? CloudRain : condition.toLowerCase().includes('cloud') || condition.toLowerCase().includes('overcast') ? CloudSun : Sun;
+  const rawCondition = data.condition || 'Clear';
+  const conditionKey = rawCondition.toLowerCase().includes('clear') || rawCondition.toLowerCase().includes('sun')
+    ? 'sunny'
+    : rawCondition.toLowerCase().includes('partly')
+    ? 'partlyCloudy'
+    : rawCondition.toLowerCase().includes('cloud')
+    ? 'cloudy'
+    : rawCondition.toLowerCase().includes('rain')
+    ? 'rain'
+    : rawCondition.toLowerCase().includes('thunder')
+    ? 'thunderstorm'
+    : 'clear';
+
+  const conditionDisplay = t(`weatherConditions.${conditionKey}`, rawCondition);
+  const isRainy = rawCondition.toLowerCase().includes('rain');
+  const WeatherIcon = isRainy ? CloudRain : rawCondition.toLowerCase().includes('cloud') || rawCondition.toLowerCase().includes('overcast') ? CloudSun : Sun;
 
   return (
     <div className="bg-gradient-to-br from-sky-50/90 via-blue-50/40 to-indigo-50/60 dark:from-slate-900/90 dark:via-slate-900/80 dark:to-slate-900/90 border border-sky-100 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm mb-6 relative overflow-hidden">
@@ -50,7 +65,7 @@ export default function CurrentWeatherCard({ data, onExploreAIChat }) {
         {/* Doppler Live Badge */}
         <div className="bg-white/90 dark:bg-slate-800/90 text-emerald-600 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-800/60 px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 shadow-2xs">
           <Radio className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-          <span>Live Station</span>
+          <span>{t('header.live')} Station</span>
         </div>
       </div>
 
@@ -72,12 +87,12 @@ export default function CurrentWeatherCard({ data, onExploreAIChat }) {
             <div>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight">
-                  {data.temperature != null ? `${data.temperature}°C` : '--'}
+                  {data.temperature != null ? `${formatNumber(data.temperature)}°C` : '--'}
                 </span>
               </div>
 
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{condition}</span>
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{conditionDisplay}</span>
                 <span className="text-slate-300 dark:text-slate-600">•</span>
                 <span className="text-xs text-slate-500 dark:text-slate-400">Live API Reading</span>
               </div>
@@ -88,20 +103,20 @@ export default function CurrentWeatherCard({ data, onExploreAIChat }) {
         {/* Right Column: 3 Metric Sub-cards */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <WeatherMetric
-            label="HUMIDITY"
-            value={data.metrics?.humidity?.value || '--'}
+            label={t('dashboard.humidity')}
+            value={formatNumber(data.metrics?.humidity?.value || '--')}
             subText={data.metrics?.humidity?.subText || 'Relative humidity'}
             icon={Droplets}
           />
           <WeatherMetric
-            label="WIND SPEED"
-            value={data.metrics?.wind?.value || '--'}
+            label={t('dashboard.wind')}
+            value={formatNumber(data.metrics?.wind?.value || '--')}
             subText={data.metrics?.wind?.subText || '10m elevation'}
             icon={Wind}
           />
           <WeatherMetric
-            label="PRECIP PROB"
-            value={data.metrics?.precipProb?.value || '--'}
+            label={t('dashboard.precipProb')}
+            value={formatNumber(data.metrics?.precipProb?.value || '--')}
             subText={data.metrics?.precipProb?.subText || 'Current precipitation'}
             icon={CloudRain}
           />
@@ -115,16 +130,16 @@ export default function CurrentWeatherCard({ data, onExploreAIChat }) {
             <Sparkles className="w-4 h-4 fill-sky-500/20" />
           </div>
           <div className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed">
-            <span className="font-bold text-sky-700 dark:text-sky-400 mr-1.5">WeatherGPT Overview:</span>
-            Current conditions in {data.location}: {condition}, {data.temperature}°C with {data.metrics?.humidity?.value || '--'} humidity and {data.metrics?.wind?.value || '--'} wind speed.
+            <span className="font-bold text-sky-700 dark:text-sky-400 mr-1.5">{t('dashboard.quickSummary')}:</span>
+            {data.location}: {conditionDisplay}, {formatNumber(data.temperature)}°C {t('dashboard.humidity')}: {formatNumber(data.metrics?.humidity?.value || '--')}, {t('dashboard.wind')}: {formatNumber(data.metrics?.wind?.value || '--')}.
           </div>
         </div>
 
         <button
           onClick={onExploreAIChat}
-          className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 shrink-0 self-end sm:self-center hover:translate-x-0.5 transition-transform"
+          className="text-xs font-bold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1 shrink-0 self-end sm:self-center hover:translate-x-0.5 transition-transform cursor-pointer"
         >
-          <span>Explore in AI Chat</span>
+          <span>{t('common.viewDetails')}</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>
