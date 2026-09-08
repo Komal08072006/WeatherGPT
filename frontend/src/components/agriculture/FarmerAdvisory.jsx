@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Sprout, CheckCircle2, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
+import { useLanguage } from '../../context/LanguageContext';
 
-export default function FarmerAdvisory({ advisoryData, currentLocation, selectedLanguage, onViewDetailed }) {
+export default function FarmerAdvisory({ advisoryData, currentLocation, onViewDetailed }) {
+  const { selectedLanguage, t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [advisory, setAdvisory] = useState(null);

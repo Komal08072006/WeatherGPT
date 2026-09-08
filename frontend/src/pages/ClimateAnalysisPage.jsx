@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import ClimateInsight from '../components/climate/ClimateInsight';
 import { TrendingUp, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ClimateAnalysisPage({ currentLocation }) {
+  const { t } = useLanguage();
   const [climateData, setClimateData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,9 +53,9 @@ export default function ClimateAnalysisPage({ currentLocation }) {
             <TrendingUp className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Climate Analysis &amp; Historical Anomaly</h1>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('climate.title')}</h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              5-year historical temperature trends and monthly temperature anomaly for <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'Selected Location'}</span>.
+              {t('climate.subtitle')} — <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'Lucknow'}</span>.
             </p>
           </div>
         </div>
@@ -64,7 +66,7 @@ export default function ClimateAnalysisPage({ currentLocation }) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 hover:border-sky-300 dark:hover:border-sky-600 transition-all cursor-pointer disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
+          <span>{t('common.refresh')}</span>
         </button>
       </div>
 

@@ -1,8 +1,10 @@
 import React from 'react';
 import FarmerAdvisory from '../components/agriculture/FarmerAdvisory';
 import { Sprout } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
-export default function FarmerAdvisoryPage({ mockFarmerAdvisory, currentLocation, selectedLanguage }) {
+export default function FarmerAdvisoryPage({ mockFarmerAdvisory, currentLocation }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -11,9 +13,9 @@ export default function FarmerAdvisoryPage({ mockFarmerAdvisory, currentLocation
           <Sprout className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">AI Farmer Advisory</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('farmerAdvisory.title')}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Agro-meteorological crop protocols, irrigation timing, and spraying guidance for <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'your location'}</span>.
+            {t('farmerAdvisory.subtitle')} — <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'Lucknow'}</span>
           </p>
         </div>
       </div>
@@ -21,7 +23,6 @@ export default function FarmerAdvisoryPage({ mockFarmerAdvisory, currentLocation
       {/* Main Advisory Component */}
       <FarmerAdvisory
         currentLocation={currentLocation}
-        selectedLanguage={selectedLanguage}
         onViewDetailed={() => alert('Opening Full Krishi Portal...')}
       />
     </div>

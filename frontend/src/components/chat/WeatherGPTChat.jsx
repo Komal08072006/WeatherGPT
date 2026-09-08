@@ -27,9 +27,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
+import { useLanguage } from '../../context/LanguageContext';
 
-
-export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'English', onNavigateToAlerts }) {
+export default function WeatherGPTChat({ currentLocation, onNavigateToAlerts }) {
+  const { selectedLanguage, t } = useLanguage();
   const [voiceMode, setVoiceMode] = useState(false); // Voice Output (TTS)
   const [isListening, setIsListening] = useState(false); // Voice Input (STT)
   const [voiceInputNotice, setVoiceInputNotice] = useState(null);
@@ -67,20 +68,13 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
   }, [voiceMode]);
 
   // Suggested Prompts
-  const suggestedPrompts = isHindi
-    ? [
-        "क्या कल लखनऊ में बारिश होगी?",
-        "मुंबई का मौसम कैसा है?",
-        "क्या दिल्ली में अभी बारिश हो रही है?",
-        "कानपुर में तापमान कितना है?",
-        "बेंगलुरु के मौसम का पूर्वानुमान"
-      ]
+  const suggestedPrompts = (t('chat.quickPrompts') && Array.isArray(t('chat.quickPrompts')))
+    ? t('chat.quickPrompts')
     : [
         "Will it rain tomorrow in Lucknow?",
         "What is the weather in Mumbai?",
         "Is it raining in Delhi right now?",
-        "What is the temperature in Kanpur?",
-        "Weather forecast for Bengaluru"
+        "What is the temperature in Kanpur?"
       ];
 
   // Conversation Thread
@@ -89,9 +83,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
       id: 1,
       sender: 'ai',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST',
-      text: isHindi
-        ? "नमस्ते! मैं WeatherGPT हूँ। मुझसे किसी भी स्थान के मौसम के बारे में पूछें (जैसे, 'क्या कल मुंबई में बारिश होगी?')"
-        : "Hello! I am WeatherGPT. Ask me any weather question about any location (e.g., 'Will it rain in Mumbai tomorrow?').",
+      text: t('chat.initialMessage'),
       sources: "Open-Meteo",
       richContent: null
     }
@@ -105,9 +97,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
           id: 1,
           sender: 'ai',
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' IST',
-          text: isHindi
-            ? "नमस्ते! मैं WeatherGPT हूँ। मुझसे किसी भी स्थान के मौसम के बारे में पूछें (जैसे, 'क्या कल मुंबई में बारिश होगी?')"
-            : "Hello! I am WeatherGPT. Ask me any weather question about any location (e.g., 'Will it rain in Mumbai tomorrow?').",
+          text: t('chat.initialMessage'),
           sources: "Open-Meteo",
           richContent: null
         }
@@ -297,6 +287,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
       role: m.sender === 'user' ? 'user' : 'assistant',
       content: m.text || ''
     }));
+    console.log('[CHAT FRONTEND] Sending conversation_history:', conversationHistory);
 
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInputText('');
@@ -627,11 +618,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={
-              isHindi
-                ? 'WeatherGPT से मौसम, फसल सलाह या यात्रा सुरक्षा के बारे में पूछें...'
-                : 'Ask WeatherGPT about atmospheric data, crop guidance, travel safety...'
-            }
+            placeholder={t('chat.inputPlaceholder')}
             className="flex-1 bg-transparent text-xs sm:text-sm text-slate-800 placeholder-slate-400 px-2 py-1.5 focus:outline-none"
           />
 
@@ -655,7 +642,7 @@ export default function WeatherGPTChat({ currentLocation, selectedLanguage = 'En
             disabled={!inputText.trim()}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-bold shadow-xs transition-all disabled:opacity-40"
           >
-            <span>{isHindi ? 'पूछें' : 'Ask AI'}</span>
+            <span>{t('chat.askAi')}</span>
             <Send className="w-3.5 h-3.5" />
           </button>
         </form>

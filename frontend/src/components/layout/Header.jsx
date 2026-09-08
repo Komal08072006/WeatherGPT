@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MapPin, Navigation, Search, Bell, ChevronDown, Globe, Loader2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import EditProfileModal from './EditProfileModal';
 import { API_BASE_URL } from '../../config/api';
 
@@ -10,12 +11,10 @@ export default function Header({
   onSearch,
   searchError,
   isLoading,
-  selectedLanguage,
-  onLanguageChange
 }) {
   const { currentUser, userProfile } = useAuth();
+  const { selectedLanguage, setSelectedLanguage, t } = useLanguage();
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const [language, setLanguage] = useState('ENG');
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
@@ -204,7 +203,7 @@ export default function Header({
               onFocus={() => {
                 if (suggestions.length > 0) setShowSuggestions(true);
               }}
-              placeholder="Search location (e.g. Lucknow, Delhi, Mumbai)..."
+              placeholder={t('common.searchPlaceholder')}
               className="w-full bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 focus:bg-white dark:focus:bg-slate-900 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 pl-9 pr-14 py-2 rounded-full border border-slate-200/60 dark:border-slate-700 focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 dark:focus:ring-sky-900 transition-all"
             />
             <button
@@ -280,7 +279,7 @@ export default function Header({
             <Globe className="w-3.5 h-3.5 text-slate-400" />
             <select
               value={selectedLanguage || 'English'}
-              onChange={(e) => onLanguageChange && onLanguageChange(e.target.value)}
+              onChange={(e) => setSelectedLanguage(e.target.value)}
               className="bg-transparent font-semibold hover:text-sky-600 dark:hover:text-sky-400 focus:outline-none cursor-pointer text-xs text-slate-700 dark:text-slate-200"
             >
               <option value="English">ENG (English)</option>

@@ -15,9 +15,9 @@ from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or "").strip()
+OPENWEATHER_API_KEY = (os.getenv("OPENWEATHER_API_KEY") or "").strip()
+GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -306,6 +306,78 @@ INDIAN_STATES_LOOKUP: dict[str, dict] = {
 }
 
 
+# Mapping of common Devanagari Hindi city names to English place names for geocoding accuracy
+HINDI_CITIES_MAP: dict[str, str] = {
+    "मुंबई": "Mumbai",
+    "लखनऊ": "Lucknow",
+    "दिल्ली": "Delhi",
+    "नई दिल्ली": "New Delhi",
+    "कानपुर": "Kanpur",
+    "बेंगलुरु": "Bengaluru",
+    "बैंगलोर": "Bengaluru",
+    "जयपुर": "Jaipur",
+    "कोलकाता": "Kolkata",
+    "चेन्नई": "Chennai",
+    "हैदराबाद": "Hyderabad",
+    "अहमदाबाद": "Ahmedabad",
+    "पुणे": "Pune",
+    "सूरत": "Surat",
+    "वाराणसी": "Varanasi",
+    "पटना": "Patna",
+    "भोपाल": "Bhopal",
+    "इंदौर": "Indore",
+    "आगरा": "Agra",
+    "मेरठ": "Meerut",
+    "नोएडा": "Noida",
+    "गाजियाबाद": "Ghaziabad",
+    "फरीदाबाद": "Faridabad",
+    "गुरुग्राम": "Gurugram",
+    "गुडगांव": "Gurugram",
+    "चंडीगढ़": "Chandigarh",
+    "शिमला": "Shimla",
+    "देहरादून": "Dehradun",
+    "रांची": "Ranchi",
+    "रायपुर": "Raipur",
+    "भुवनेश्वर": "Bhubaneswar",
+    "गुवाहाटी": "Guwahati",
+    "श्रीनगर": "Srinagar",
+    "जम्मू": "Jammu",
+    "अमृतसर": "Amritsar",
+    "लुधियाना": "Ludhiana",
+    "नागपुर": "Nagpur",
+    "नाशिक": "Nashik",
+    "राजकोट": "Rajkot",
+    "वडोदरा": "Vadodara",
+    "मदुराई": "Madurai",
+    "कोच्चि": "Kochi",
+    "तिरुवनंतपुरम": "Thiruvananthapuram",
+    "प्रयागराज": "Prayagraj",
+    "इलाहाबाद": "Prayagraj",
+}
+
+
+# Lookup table for top cities for instant in-memory geocoding resolution
+COMMON_CITIES_LOOKUP: dict[str, dict] = {
+    "lucknow": {"name": "Lucknow", "latitude": 26.8467, "longitude": 80.9462, "admin1": "Uttar Pradesh", "country": "India", "population": 2800000},
+    "mumbai": {"name": "Mumbai", "latitude": 19.0760, "longitude": 72.8777, "admin1": "Maharashtra", "country": "India", "population": 20000000},
+    "delhi": {"name": "Delhi", "latitude": 28.6139, "longitude": 77.2090, "admin1": "Delhi", "country": "India", "population": 11000000},
+    "new delhi": {"name": "New Delhi", "latitude": 28.6139, "longitude": 77.2090, "admin1": "Delhi", "country": "India", "population": 11000000},
+    "kanpur": {"name": "Kanpur", "latitude": 26.4499, "longitude": 80.3319, "admin1": "Uttar Pradesh", "country": "India", "population": 2900000},
+    "bengaluru": {"name": "Bengaluru", "latitude": 12.9716, "longitude": 77.5946, "admin1": "Karnataka", "country": "India", "population": 12000000},
+    "bangalore": {"name": "Bengaluru", "latitude": 12.9716, "longitude": 77.5946, "admin1": "Karnataka", "country": "India", "population": 12000000},
+    "jaipur": {"name": "Jaipur", "latitude": 26.9124, "longitude": 75.7873, "admin1": "Rajasthan", "country": "India", "population": 3100000},
+    "kolkata": {"name": "Kolkata", "latitude": 22.5726, "longitude": 88.3639, "admin1": "West Bengal", "country": "India", "population": 15000000},
+    "chennai": {"name": "Chennai", "latitude": 13.0827, "longitude": 80.2707, "admin1": "Tamil Nadu", "country": "India", "population": 11000000},
+    "hyderabad": {"name": "Hyderabad", "latitude": 17.3850, "longitude": 78.4867, "admin1": "Telangana", "country": "India", "population": 10000000},
+    "ahmedabad": {"name": "Ahmedabad", "latitude": 23.0225, "longitude": 72.5714, "admin1": "Gujarat", "country": "India", "population": 8400000},
+    "pune": {"name": "Pune", "latitude": 18.5204, "longitude": 73.8567, "admin1": "Maharashtra", "country": "India", "population": 3100000},
+    "surat": {"name": "Surat", "latitude": 21.1702, "longitude": 72.8311, "admin1": "Gujarat", "country": "India", "population": 4400000},
+    "varanasi": {"name": "Varanasi", "latitude": 25.3176, "longitude": 82.9739, "admin1": "Uttar Pradesh", "country": "India", "population": 1200000},
+    "patna": {"name": "Patna", "latitude": 25.5941, "longitude": 85.1376, "admin1": "Bihar", "country": "India", "population": 2500000},
+    "bhopal": {"name": "Bhopal", "latitude": 23.2599, "longitude": 77.4126, "admin1": "Madhya Pradesh", "country": "India", "population": 1800000},
+}
+
+
 def get_name_relevance_score(item: dict, query: str) -> int:
     q = query.strip().lower()
     name = (item.get("name") or "").strip().lower()
@@ -333,7 +405,12 @@ def get_name_relevance_score(item: dict, query: str) -> int:
 
 
 async def search_geocoding_results(client: httpx.AsyncClient, query: str, count: int = 10) -> list[dict]:
-    clean_query = query.strip().lower()
+    raw_query = query.strip()
+    search_term = HINDI_CITIES_MAP.get(raw_query, raw_query)
+    clean_query = search_term.strip().lower()
+
+    if clean_query in COMMON_CITIES_LOOKUP:
+        return [dict(COMMON_CITIES_LOOKUP[clean_query])]
 
     # BEFORE calling external geocoding API, check if query matches an Indian state / UT
     if clean_query in INDIAN_STATES_LOOKUP:
@@ -354,7 +431,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
             res = await fetch_with_retry(
                 client,
                 geo_url,
-                params={"name": query.strip(), "count": count, "language": "en", "format": "json"},
+                params={"name": search_term, "count": count, "language": "en", "format": "json"},
                 max_retries=2,
                 delays=[0.8, 1.5]
             )
@@ -382,7 +459,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
             nom_url = "https://nominatim.openstreetmap.org/search"
             res = await client.get(
                 nom_url,
-                params={"q": query.strip(), "format": "json", "limit": 5, "addressdetails": 1},
+                params={"q": search_term, "format": "json", "limit": 5, "addressdetails": 1},
                 headers={"User-Agent": "WeatherGPTApp/1.0 (contact@weathergpt.local)"},
                 timeout=3.0
             )
@@ -428,7 +505,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
             unique_matches.append(m)
 
     # STAGE 1: Filter out results with no name/admin1/country relevance (score == 0)
-    relevant_candidates = [m for m in unique_matches if get_name_relevance_score(m, query) > 0]
+    relevant_candidates = [m for m in unique_matches if get_name_relevance_score(m, search_term) > 0]
 
     # If Stage 1 finds no relevant candidates at all, return empty list
     if not relevant_candidates:
@@ -438,7 +515,7 @@ async def search_geocoding_results(client: httpx.AsyncClient, query: str, count:
     sorted_results = sorted(
         relevant_candidates,
         key=lambda x: (
-            get_name_relevance_score(x, query),
+            get_name_relevance_score(x, search_term),
             x.get("population") or 0
         ),
         reverse=True
@@ -798,14 +875,15 @@ async def get_alerts(
 
 
 
-def generate_groq_content(prompt_or_contents: str, system_instruction: str = None) -> str:
-    """Fallback AI content generation using Groq HTTP API with httpx."""
-    if not GROQ_API_KEY:
+async def generate_groq_content(prompt_or_contents: str, system_instruction: str = None) -> str:
+    """Fallback AI content generation using Groq HTTP API with async httpx."""
+    key = (os.getenv("GROQ_API_KEY") or GROQ_API_KEY or "").strip()
+    if not key:
         raise ValueError("GROQ_API_KEY environment variable is not configured.")
 
     groq_url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
 
@@ -814,51 +892,58 @@ def generate_groq_content(prompt_or_contents: str, system_instruction: str = Non
         messages.append({"role": "system", "content": system_instruction})
     messages.append({"role": "user", "content": prompt_or_contents})
 
-    candidate_models = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-        "mixtral-8x7b-32768",
-        "llama3-70b-8192",
-    ]
+    payload = {
+        "model": "openai/gpt-oss-20b",
+        "messages": messages,
+        "temperature": 0.7,
+    }
 
-    last_exc = None
-    with httpx.Client(timeout=15.0) as client:
-        for model in candidate_models:
-            try:
-                payload = {
-                    "model": model,
-                    "messages": messages,
-                    "temperature": 0.7,
-                }
-                res = client.post(groq_url, headers=headers, json=payload)
+    # Use response_format json_object only when system_instruction explicitly requests JSON output
+    if system_instruction and any(k in system_instruction.lower() for k in ["json object", "json array", "respond in json", "respond only with a json"]):
+        payload["response_format"] = {"type": "json_object"}
+
+    async with httpx.AsyncClient(timeout=25.0) as client:
+        for attempt in range(4):
+            res = await client.post(groq_url, headers=headers, json=payload)
+            if res.status_code == 200:
+                data = res.json()
+                choices = data.get("choices", [])
+                if choices and len(choices) > 0:
+                    content = choices[0].get("message", {}).get("content", "").strip()
+                    if content:
+                        print("[GROQ SUCCESS] Successfully generated AI response using model 'openai/gpt-oss-20b'")
+                        return content
+            elif res.status_code == 429:
+                if attempt < 3:
+                    delay = 2.0 * (attempt + 1)
+                    print(f"[GROQ RATE LIMIT] 429 received from Groq. Waiting {delay}s before retry {attempt + 2}/4...")
+                    await asyncio.sleep(delay)
+                    continue
+            elif res.status_code == 400 and "response_format" in payload:
+                print("[GROQ RETRY] Retrying without response_format json_object...")
+                payload.pop("response_format", None)
+                res = await client.post(groq_url, headers=headers, json=payload)
                 if res.status_code == 200:
                     data = res.json()
                     choices = data.get("choices", [])
                     if choices and len(choices) > 0:
                         content = choices[0].get("message", {}).get("content", "").strip()
                         if content:
-                            print(f"[GROQ SUCCESS] Successfully generated AI response using model '{model}'")
+                            print("[GROQ SUCCESS] Successfully generated AI response using model 'openai/gpt-oss-20b'")
                             return content
-                else:
-                    print(f"[GROQ WARNING] Model '{model}' returned HTTP {res.status_code}: {res.text[:200]}")
-            except Exception as err:
-                last_exc = err
-                print(f"[GROQ ERROR] Request failed for model '{model}': {type(err).__name__}: {err}")
-                continue
 
-    if last_exc:
-        raise last_exc
+            print(f"[GROQ ERROR] Groq API returned HTTP {res.status_code}: {res.text[:200]}")
+            res.raise_for_status()
+
     raise RuntimeError("Failed to generate response from Groq API")
 
 
-def generate_gemini_raw(prompt_or_contents: str, system_instruction: str = None) -> str:
+async def generate_gemini_raw(prompt_or_contents: str, system_instruction: str = None) -> str:
     """Internal helper to attempt generation via Gemini API candidate models."""
     candidate_models = [
-        "gemini-3.5-flash",
-        "gemini-3.6-flash",
-        "gemini-3.7-flash",
-        "gemini-flash-latest",
         "gemini-2.5-flash",
+        "gemini-1.5-flash",
+        "gemini-flash-latest",
     ]
     last_exc = None
     for model_name in candidate_models:
@@ -867,7 +952,7 @@ def generate_gemini_raw(prompt_or_contents: str, system_instruction: str = None)
                 model_name,
                 system_instruction=system_instruction
             )
-            resp = model.generate_content(prompt_or_contents)
+            resp = await asyncio.to_thread(model.generate_content, prompt_or_contents)
             return resp.text.strip()
         except Exception as exc:
             last_exc = exc
@@ -879,13 +964,13 @@ def generate_gemini_raw(prompt_or_contents: str, system_instruction: str = None)
     raise RuntimeError("Gemini API models failed")
 
 
-def generate_gemini_content(prompt_or_contents: str, system_instruction: str = None) -> str:
+async def generate_gemini_content(prompt_or_contents: str, system_instruction: str = None) -> str:
     """Primary AI entry point: tries Gemini first, automatically falls back to Groq on failure."""
     gemini_error = None
 
     if GEMINI_API_KEY:
         try:
-            return generate_gemini_raw(prompt_or_contents, system_instruction=system_instruction)
+            return await generate_gemini_raw(prompt_or_contents, system_instruction=system_instruction)
         except Exception as exc:
             gemini_error = exc
             print(f"[AI FALLBACK TRIGGERED] Gemini API failed ({type(exc).__name__}: {exc}). Switching to Groq fallback...")
@@ -894,7 +979,7 @@ def generate_gemini_content(prompt_or_contents: str, system_instruction: str = N
 
     if GROQ_API_KEY:
         try:
-            return generate_groq_content(prompt_or_contents, system_instruction=system_instruction)
+            return await generate_groq_content(prompt_or_contents, system_instruction=system_instruction)
         except Exception as groq_err:
             print(f"[AI FALLBACK ERROR] Groq API fallback also failed ({type(groq_err).__name__}: {groq_err})")
             raise groq_err
@@ -917,10 +1002,12 @@ async def chat_endpoint(request: ChatRequest):
         )
 
     user_text = request.message.strip()
-    print(f"\n[CHAT REQ] User message: {user_text!r} | Language: {request.language!r}")
+    print(f"[CHAT ROUTE RECEIVED] User message: {user_text!r}")
+    print(f"[CHAT ROUTE RECEIVED] conversation_history: {request.conversation_history!r}")
 
     # Build conversation context string from recent history if provided
     history_str = ""
+    was_asked = False
     if request.conversation_history:
         formatted_turns = []
         for turn in request.conversation_history[-4:]:
@@ -931,62 +1018,167 @@ async def chat_endpoint(request: ChatRequest):
                 r = getattr(turn, "role", "user")
                 c = getattr(turn, "content", "")
 
-            role_label = "User" if str(r).lower() == "user" else "Assistant"
+            role_label = str(r).lower()
             if c:
-                formatted_turns.append(f"{role_label}: {c.strip()}")
+                formatted_turns.append(f"[{role_label}]: {c.strip()}")
         if formatted_turns:
-            history_str = "Recent Conversation History:\n" + "\n".join(formatted_turns) + "\n\n"
+            history_str = "Recent conversation:\n" + "\n".join(formatted_turns)
+
+        last_turn = request.conversation_history[-1]
+        last_content = last_turn.get("content", "") if isinstance(last_turn, dict) else getattr(last_turn, "content", "")
+        last_lower = str(last_content).lower()
+        if any(q in last_lower for q in ["which city", "which place", "like to check", "weather for", "किस शहर", "किस जगह", "मौसम देखना चाहते", "मौसम जानना चाहते"]):
+            was_asked = True
 
     try:
-        # 1. Use Gemini API to extract location and intent
         location_name = None
-        extractor_instruction = (
-            "The user's message may be in any language (English, Hindi, or others). "
-            "Regardless of input language, always respond with a valid JSON object in the exact format specified, with location and intent as plain string values. "
-            "Respond ONLY with a JSON object containing exactly two fields: "
-            '"location" (the place name mentioned in the message or conversation context, translated/transliterated to standard English place name if needed, or "unknown" if none is mentioned) '
-            'and "intent" (one of: "forecast", "alert", "climate", "general"). '
-            "If the current message alone doesn't contain a location, check the recent conversation history — if the assistant's last message asked the user to specify a location, and the current message is just a place name or short phrase (e.g. 'lucknow', 'mumbai', 'delhi'), treat that as the answer to that question and extract it as the location. "
-            "Do not include code fences, markdown, or extra explanations outside the JSON."
-        )
+        greeting_words = {
+            "hi", "hii", "hiii", "hello", "hey", "heyy", "greetings", "good morning", "good afternoon", "good evening",
+            "namaste", "pranam", "thanks", "thank you", "bye", "नमस्ते", "प्रणाम", "हेलो", "हाय"
+        }
 
-        prompt_text = f"{history_str}Current User Message: {user_text}" if history_str else user_text
+        # Clean user text for standalone check
+        cleaned_user_text = re.sub(r'^[^\w\u0900-\u097F]+|[^\w\u0900-\u097F]+$', '', user_text, flags=re.UNICODE).strip()
+        clean_lower = cleaned_user_text.lower()
 
-        raw_text = ""
-        try:
-            raw_text = generate_gemini_content(prompt_text, system_instruction=extractor_instruction)
-            print(f"[CHAT GEMINI RAW EXTRACT]: {raw_text!r}")
-        except Exception as gem_err:
-            print(f"[CHAT ERROR] Gemini location extraction call failed: {gem_err}")
+        # REQUIREMENT 12: Standalone city name direct geocoding lookup without requiring an AI call
+        is_standalone_candidate = False
+        if clean_lower and clean_lower not in greeting_words:
+            word_count = len(cleaned_user_text.split())
+            if word_count <= 3:
+                weather_question_words = {
+                    "weather", "forecast", "temperature", "rain", "raining", "climate", "hot", "cold",
+                    "मौसम", "तापमान", "बारिश", "पूर्वानुमान", "कैसा", "कितना", "बताओ"
+                }
+                has_question_word = any(w.lower() in weather_question_words for w in cleaned_user_text.split())
+                if not has_question_word or was_asked:
+                    is_standalone_candidate = True
 
-        parsed_json = None
-        if raw_text:
-            clean_json_str = re.sub(r"^```(?:json)?|```$", "", raw_text, flags=re.MULTILINE).strip()
+        if is_standalone_candidate:
+            mapped_term = HINDI_CITIES_MAP.get(cleaned_user_text, cleaned_user_text)
             try:
-                parsed_json = json.loads(clean_json_str)
-            except Exception as parse_err:
-                print(f"[CHAT LOG] Direct json.loads failed: {parse_err}. Attempting regex extraction.")
-                match = re.search(r"\{.*\}", raw_text, re.DOTALL)
-                if match:
-                    try:
-                        parsed_json = json.loads(match.group(0))
-                        print(f"[CHAT LOG] Regex extracted JSON: {parsed_json}")
-                    except Exception as regex_err:
-                        print(f"[CHAT ERROR] Regex JSON parse also failed: {regex_err}")
+                async with httpx.AsyncClient(timeout=3.0) as client:
+                    geo_res = await search_geocoding_results(client, mapped_term, count=1)
+                    if geo_res and len(geo_res) > 0:
+                        matched_name = geo_res[0].get("name") or mapped_term
+                        location_name = matched_name
+                        print(f"[CHAT FAST RESOLVE] Direct geocoding resolved standalone city '{user_text}' -> '{location_name}'")
+            except Exception as fast_geo_err:
+                print(f"[CHAT FAST RESOLVE WARNING] Geocoding lookup for '{user_text}' failed: {fast_geo_err}")
 
-        if parsed_json and isinstance(parsed_json, dict):
-            extracted_loc = parsed_json.get("location")
-            if extracted_loc and str(extracted_loc).strip().lower() not in ["unknown", "none", "null", ""]:
-                location_name = str(extracted_loc).strip()
+        # If standalone resolution did not find a location, run AI location extractor
+        if not location_name:
+            extractor_instruction = (
+                "The user's message may be in any language (English, Hindi, or others). "
+                "Regardless of input language, always respond with a valid JSON object in the exact format specified, with location and intent as plain string values. "
+                "Respond ONLY with a JSON object containing exactly two fields: "
+                '"location" (the place name mentioned in the message or conversation context, translated/transliterated to standard English place name if needed, or "unknown" if none is mentioned) '
+                'and "intent" (one of: "forecast", "alert", "climate", "general"). '
+                "If the current message alone doesn't contain a location, check the recent conversation history — if the assistant's last message asked the user to specify a location, and the current message is just a place name or short phrase (e.g. 'lucknow', 'mumbai', 'delhi', 'लखनऊ', 'कानपुर'), treat that as the answer to that question and extract it as the location. "
+                "Do not include code fences, markdown, or extra explanations outside the JSON."
+            )
 
-        print(f"[CHAT LOG] Extracted location_name: {location_name!r}")
+            if history_str:
+                prompt_text = (
+                    f"{history_str}\n"
+                    f"[user]: {user_text}\n\n"
+                    "Based on this conversation, if the user's latest message is a bare location name answering a previous clarification question, extract it as the location."
+                )
+            else:
+                prompt_text = f"[user]: {user_text}"
+
+            print(f"[CHAT EXTRACTOR PROMPT SENT TO GEMINI]:\n{prompt_text}")
+
+            raw_text = ""
+            try:
+                raw_text = await generate_gemini_content(prompt_text, system_instruction=extractor_instruction)
+                print(f"[CHAT EXTRACTOR RAW RESPONSE FROM GEMINI]: {raw_text!r}")
+            except Exception as gem_err:
+                print(f"[CHAT ERROR] AI location extraction call failed: {gem_err}")
+
+            parsed_json = None
+            if raw_text:
+                clean_json_str = re.sub(r"^```(?:json)?|```$", "", raw_text, flags=re.MULTILINE).strip()
+                try:
+                    parsed_json = json.loads(clean_json_str)
+                except Exception as parse_err:
+                    print(f"[CHAT LOG] Direct json.loads failed: {parse_err}. Attempting regex extraction.")
+                    match = re.search(r"\{.*\}", raw_text, re.DOTALL)
+                    if match:
+                        try:
+                            parsed_json = json.loads(match.group(0))
+                            print(f"[CHAT LOG] Regex extracted JSON: {parsed_json}")
+                        except Exception as regex_err:
+                            print(f"[CHAT ERROR] Regex JSON parse also failed: {regex_err}")
+
+            if parsed_json and isinstance(parsed_json, dict):
+                extracted_loc = parsed_json.get("location")
+                if extracted_loc and str(extracted_loc).strip().lower() not in ["unknown", "none", "null", ""]:
+                    location_name = str(extracted_loc).strip()
+
+        # REQUIREMENT 11: Deterministic fallback if both AI providers failed or returned location_name = None
+        if not location_name:
+            candidate_loc = None
+            # Hindi pattern matching
+            hindi_pattern = r"(?:क्या\s+)?(?:कल\s+|आज\s+|अभी\s+)?(.+?)\s*(?:का|के|में|की|से)\s*(?:मौसम|पूर्वानुमान|तापमान|बारिश|आंधी|हवा|जलवायु|कैसा|कैसी|कितना|कितनी|रहेगा|रहेगी|होगी|बताओ|बताएं)"
+            m_hi = re.search(hindi_pattern, user_text, re.IGNORECASE)
+            if m_hi:
+                extracted_phrase = m_hi.group(1).strip()
+                extracted_phrase = re.sub(r'\b(क्या|कल|आज|अभी|के|का|में|की|काफ|यह|वहां)\b', '', extracted_phrase).strip()
+                if extracted_phrase:
+                    candidate_loc = extracted_phrase
+
+            # English pattern matching
+            if not candidate_loc:
+                eng_patterns = [
+                    r"(?:weather|forecast|temperature|climate|rain|raining|snow|wind|humidity)\s+(?:in|at|for|of)\s+(.+)",
+                    r"will\s+it\s+rain\s+in\s+(.+)",
+                    r"is\s+it\s+raining\s+in\s+(.+)",
+                    r"how\s+is\s+the\s+weather\s+in\s+(.+)",
+                    r"how\s+hot\s+is\s+(.+)\s+today",
+                ]
+                user_clean_eng = re.sub(r'[^\w\s]', '', user_text).strip()
+                for p in eng_patterns:
+                    m_eng = re.search(p, user_clean_eng, re.IGNORECASE)
+                    if m_eng:
+                        extracted_eng = m_eng.group(1).strip()
+                        extracted_eng = re.sub(r'\b(today|tomorrow|yesterday|tonight|now|this week|next week)\b', '', extracted_eng, flags=re.IGNORECASE).strip()
+                        if extracted_eng:
+                            candidate_loc = extracted_eng
+                            break
+
+            # Fallback to entire user_text if short, not a greeting, and does not contain weather question words
+            if not candidate_loc:
+                user_strip = user_text.strip(" ?.!,").strip()
+                words = user_strip.split()
+                has_weather_word = any(w.lower() in {
+                    "weather", "forecast", "temperature", "rain", "raining", "climate", "hot", "cold",
+                    "मौसम", "तापमान", "बारिश", "पूर्वानुमान", "कैसा", "कितना", "बताओ"
+                } for w in words)
+                if len(words) <= 4 and user_strip.lower() not in greeting_words and not any(w.lower() in greeting_words for w in words) and not has_weather_word:
+                    candidate_loc = user_strip
+
+            if candidate_loc:
+                mapped_candidate = HINDI_CITIES_MAP.get(candidate_loc, candidate_loc)
+                try:
+                    async with httpx.AsyncClient(timeout=5.0) as client:
+                        geo_res = await search_geocoding_results(client, mapped_candidate, count=1)
+                        if geo_res and len(geo_res) > 0:
+                            location_name = geo_res[0].get("name") or mapped_candidate
+                        else:
+                            location_name = mapped_candidate
+                except Exception as det_geo_err:
+                    location_name = mapped_candidate
+                    print(f"[CHAT DETERMINISTIC FALLBACK WARNING] Geocoding check failed: {det_geo_err}")
+                print(f"[CHAT DETERMINISTIC FALLBACK] Extracted location '{location_name}' from candidate '{candidate_loc}'")
+
+        print(f"[CHAT LOG] Extracted location_name: {location_name}")
 
         # 2. If no location is mentioned, return a friendly clarification response
         if not location_name:
             user_lower = user_text.lower()
-            greeting_keywords = ["hi", "hii", "hiii", "hello", "hey", "heyy", "greetings", "good morning", "good afternoon", "good evening", "namaste", "pranam"]
-            words = re.findall(r'\b\w+\b', user_lower)
-            is_greeting = any(w in greeting_keywords for w in words) or user_lower.startswith(("hi", "hello", "hey", "namaste"))
+            words = re.findall(r'[\w\u0900-\u097F]+', user_lower)
+            is_greeting = any(w in greeting_words for w in words) or user_lower.startswith(("hi", "hello", "hey", "namaste", "नमस्ते"))
 
             target_lang = request.language if request.language and request.language.strip() else "English"
             if target_lang.lower() in ["hindi", "hi"]:
@@ -1003,7 +1195,7 @@ async def chat_endpoint(request: ChatRequest):
                         f"Translate the following user-facing clarification message into {target_lang}: "
                         f"'{'Hi! I can tell you the weather for any city — which place would you like to check?' if is_greeting else 'Which city or place would you like the weather for?'}'"
                     )
-                    clarification_answer = generate_gemini_content(prompt_text, system_instruction=clarification_instruction)
+                    clarification_answer = await generate_gemini_content(prompt_text, system_instruction=clarification_instruction)
                 except Exception:
                     clarification_answer = "Hi! I can tell you the weather for any city — which place would you like to check?" if is_greeting else "Which city or place would you like the weather for?"
 
@@ -1040,12 +1232,35 @@ async def chat_endpoint(request: ChatRequest):
             f"CRITICAL MANDATE: You MUST respond ONLY in {target_lang}. All output text MUST be written strictly and entirely in {target_lang} script/language as a native speaker would. "
             "Do NOT include any English explanation, Hindi fallback, translation notice, pronunciation guide, parenthetical notes, or meta-commentary of any kind — output ONLY the direct answer text in {target_lang}, nothing else."
         )
+
+        compact_weather = {
+            "location": weather_data.get("location"),
+            "country": weather_data.get("country"),
+            "admin1": weather_data.get("admin1"),
+            "current": weather_data.get("weather", {}).get("current"),
+            "daily_summary": weather_data.get("weather", {}).get("daily"),
+        }
+
         context_prompt = (
+            (f"{history_str}\n\n" if history_str else "") +
             f"User Question: {user_text}\n"
             f"Resolved Location: {weather_data.get('location', location_name)}\n"
-            f"Real Weather Data JSON: {json.dumps(weather_data)}"
+            f"Real Weather Data JSON: {json.dumps(compact_weather)}"
         )
-        simple_answer = generate_gemini_content(context_prompt, system_instruction=answer_instruction)
+        print(f"[CHAT ANSWER PROMPT SENT TO GEMINI]:\n{context_prompt}")
+        try:
+            simple_answer = await generate_gemini_content(context_prompt, system_instruction=answer_instruction)
+        except Exception as ai_ans_err:
+            print(f"[CHAT WARNING] AI answer generation failed ({ai_ans_err}). Generating fallback weather answer.")
+            curr_data = weather_data.get("weather", {}).get("current", {})
+            temp = curr_data.get("temperature_2m", "N/A")
+            hum = curr_data.get("relative_humidity_2m", "N/A")
+            is_hi = target_lang.lower() in ["hindi", "hi"]
+            loc_label = weather_data.get("location", location_name)
+            if is_hi:
+                simple_answer = f"{loc_label} में वर्तमान तापमान {temp}°C है और आर्द्रता {hum}% है।"
+            else:
+                simple_answer = f"The current temperature in {loc_label} is {temp}°C with {hum}% humidity."
 
         return {
             "simple_answer": simple_answer,
@@ -1067,7 +1282,7 @@ async def chat_endpoint(request: ChatRequest):
         )
         return {
             "simple_answer": fallback_msg,
-            "location_used": None,
+            "location_used": location_name if 'location_name' in locals() and location_name else None,
             "raw_data": None,
             "needs_location": False,
         }
@@ -1137,7 +1352,7 @@ async def get_farmer_advisory(
     )
 
     try:
-        raw_text = generate_gemini_content(context_prompt, system_instruction=advisory_instruction)
+        raw_text = await generate_gemini_content(context_prompt, system_instruction=advisory_instruction)
         clean_json_str = re.sub(r"^```(?:json)?|```$", "", raw_text, flags=re.MULTILINE).strip()
         parsed = json.loads(clean_json_str)
 

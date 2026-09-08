@@ -1,13 +1,14 @@
 import React from 'react';
 import { Settings, MapPin, Bell, Globe, Sun, Moon } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function SettingsPage({
   currentLocation,
-  selectedLanguage = 'English',
-  onLanguageChange,
   theme = 'light',
   onThemeChange
 }) {
+  const { selectedLanguage, setSelectedLanguage, t } = useLanguage();
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -16,9 +17,9 @@ export default function SettingsPage({
           <Settings className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Platform Settings</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('settings.title')}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Configure alert threshold info, appearance, and language preferences for WeatherGPT.
+            {t('settings.subtitle')}
           </p>
         </div>
       </div>
@@ -41,14 +42,14 @@ export default function SettingsPage({
           <div className="flex items-center gap-3">
             <Bell className="w-5 h-5 text-amber-600 dark:text-amber-400" />
             <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Convective Storm Alert Triggers</div>
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{t('settings.notifications')}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Fixed backend thresholds: Orange (&gt;15mm rain or &gt;70% prob), Red (&gt;30mm rain or &gt;90% prob)
+                {t('settings.notificationsDesc')}
               </div>
             </div>
           </div>
           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-3 py-1 rounded-xl border border-amber-200 dark:border-amber-800/60">
-            Active (Orange: 70%+, Red: 90%+)
+            {t('common.active')}
           </span>
         </div>
 
@@ -57,15 +58,15 @@ export default function SettingsPage({
           <div className="flex items-center gap-3">
             <Globe className="w-5 h-5 text-blue-600 dark:text-blue-400" />
             <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Language Preference</div>
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{t('settings.languagePref')}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                English, हिंदी, বাংলা, தமிழ், and मराठी AI output
+                {t('settings.languageDesc')}
               </div>
             </div>
           </div>
           <select
             value={selectedLanguage}
-            onChange={(e) => onLanguageChange && onLanguageChange(e.target.value)}
+            onChange={(e) => setSelectedLanguage(e.target.value)}
             className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-400 dark:hover:border-sky-500 focus:outline-none cursor-pointer transition-colors"
           >
             <option value="English">English (ENG)</option>
@@ -85,9 +86,9 @@ export default function SettingsPage({
               <Sun className="w-5 h-5 text-amber-500" />
             )}
             <div>
-              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">Appearance</div>
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">{t('settings.appearance')}</div>
               <div className="text-xs text-slate-500 dark:text-slate-400">
-                Switch between Light and Dark mode across the application
+                {t('settings.appearanceDesc')}
               </div>
             </div>
           </div>
@@ -103,7 +104,7 @@ export default function SettingsPage({
               }`}
             >
               <Sun className="w-3.5 h-3.5 text-amber-500" />
-              <span>Light</span>
+              <span>{t('settings.lightMode')}</span>
             </button>
             <button
               type="button"
@@ -115,7 +116,7 @@ export default function SettingsPage({
               }`}
             >
               <Moon className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Dark</span>
+              <span>{t('settings.darkMode')}</span>
             </button>
           </div>
         </div>

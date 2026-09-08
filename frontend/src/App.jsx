@@ -30,15 +30,17 @@ import {
   mockClimateInsight
 } from './data/mockData';
 
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
+
 function ExistingDashboard() {
   const { loading: authLoading } = useAuth();
+  const { selectedLanguage, setSelectedLanguage } = useLanguage();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [currentLocation, setCurrentLocation] = useState(mockLocations[0]);
   const [currentWeather, setCurrentWeather] = useState(mockCurrentWeather);
   const [activeViewMode, setActiveViewMode] = useState('normal'); // 'normal' | 'warning' | 'severe' | 'loading'
   const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [theme, setTheme] = useState('light');
 
   React.useEffect(() => {
@@ -326,17 +328,19 @@ function ProtectedRoute({ children }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard/*" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/dashboard/*" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><ExistingDashboard /></ProtectedRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

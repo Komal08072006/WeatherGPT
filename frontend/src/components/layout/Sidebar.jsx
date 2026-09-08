@@ -14,11 +14,13 @@ import {
   Pencil
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import EditProfileModal from './EditProfileModal';
 
 export default function Sidebar({ activeTab, setActiveTab }) {
   const navigate = useNavigate();
   const { currentUser, userProfile, logout } = useAuth();
+  const { t } = useLanguage();
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
 
@@ -28,14 +30,14 @@ export default function Sidebar({ activeTab, setActiveTab }) {
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'ai', label: 'WeatherGPT', icon: Sparkles },
-    { id: 'forecast', label: 'Forecast', icon: CloudSun },
-    { id: 'map', label: 'Weather Map', icon: Map },
-    { id: 'alerts', label: 'Alerts', icon: TriangleAlert },
-    { id: 'advisory', label: 'Farmer Advisory', icon: Sprout },
-    { id: 'climate', label: 'Climate Analysis', icon: TrendingUp },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'ai', label: t('nav.weatherGPT'), icon: Sparkles },
+    { id: 'forecast', label: t('nav.forecast'), icon: CloudSun },
+    { id: 'map', label: t('nav.maps'), icon: Map },
+    { id: 'alerts', label: t('nav.alerts'), icon: TriangleAlert },
+    { id: 'advisory', label: t('nav.advisory'), icon: Sprout },
+    { id: 'climate', label: t('nav.climate'), icon: TrendingUp },
+    { id: 'settings', label: t('nav.settings'), icon: Settings },
   ];
 
   const displayName = userProfile?.name || currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'User');

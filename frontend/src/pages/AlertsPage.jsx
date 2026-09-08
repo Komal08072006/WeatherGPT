@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import WeatherAlert from '../components/alerts/WeatherAlert';
 import { TriangleAlert, ShieldCheck, CheckCircle2, Share2, FileText, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
+  const { t } = useLanguage();
   const [alertState, setAlertState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -57,9 +59,9 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           <TriangleAlert className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Weather Alerts & Warning Bulletins</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('alerts.title')}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Active atmospheric warnings, severe weather bulletins, and threshold triggers for <span className="font-semibold text-slate-700 dark:text-slate-200">{displayLocation}</span>.
+            {t('alerts.subtitle')} — <span className="font-semibold text-slate-700 dark:text-slate-200">{displayLocation}</span>.
           </p>
         </div>
       </div>

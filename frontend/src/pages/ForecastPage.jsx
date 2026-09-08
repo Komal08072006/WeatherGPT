@@ -2,8 +2,10 @@ import React from 'react';
 import HourlyForecast from '../components/weather/HourlyForecast';
 import WeeklyForecast from '../components/weather/WeeklyForecast';
 import { CloudSun } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ForecastPage({ mockHourlyForecast, mockWeeklyForecast, currentLocation }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -12,9 +14,9 @@ export default function ForecastPage({ mockHourlyForecast, mockWeeklyForecast, c
           <CloudSun className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Weather Forecast</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('forecast.title')}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Hourly rain trajectory & 7-day agro-meteorological outlook for <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name}</span>.
+            {t('forecast.subtitle')} — <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name}</span>.
           </p>
         </div>
       </div>

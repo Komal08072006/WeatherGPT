@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ArrowRight, Sparkles, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 function SceneSection({ children, progressRange }) {
   const containerRef = useRef(null);
@@ -48,6 +49,7 @@ function SceneSection({ children, progressRange }) {
 export default function LandingPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const { t } = useLanguage();
   const videoRef = useRef(null);
   const [videoSrc, setVideoSrc] = React.useState('/bg-video.mp4');
 
@@ -143,7 +145,7 @@ export default function LandingPage() {
           onClick={handleAuthAction}
           className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 text-sm font-medium text-white transition-all duration-300 backdrop-blur-md hover:scale-105 active:scale-95 shadow-lg shadow-black/20 cursor-pointer"
         >
-          {currentUser ? 'Go to Dashboard' : 'Sign In'}
+          {currentUser ? t('nav.dashboard') : t('auth.signInBtn')}
         </button>
       </header>
 
@@ -218,7 +220,7 @@ export default function LandingPage() {
             className="group relative inline-flex items-center gap-4 px-10 py-5 rounded-full bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 text-white text-xl font-bold tracking-wide shadow-2xl shadow-cyan-500/30 transition-all duration-300 overflow-hidden cursor-pointer"
           >
             <span className="relative z-10 flex items-center gap-3">
-              GET STARTED
+              {t('landing.getStarted')}
               <ArrowRight className="w-6 h-6 transition-transform duration-300 group-hover:translate-x-1" />
             </span>
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

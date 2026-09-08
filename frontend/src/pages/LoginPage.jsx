@@ -3,10 +3,12 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff, CheckCircle2, User, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { currentUser, loginWithEmail, signupWithEmail, loginWithGoogle, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
 
   const videoRef = useRef(null);
   const [videoSrc, setVideoSrc] = useState('/bg-video.mp4');
@@ -186,7 +188,7 @@ export default function LoginPage() {
             WeatherGPT
           </h1>
           <p className="text-slate-400 text-sm mt-1.5 font-light">
-            {isSignUp ? 'Create your Firebase weather intelligence account' : 'Sign in to access real-time weather AI'}
+            {isSignUp ? t('auth.signupSubtitle') : t('auth.loginSubtitle')}
           </p>
         </div>
 

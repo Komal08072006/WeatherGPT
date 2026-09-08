@@ -6,14 +6,16 @@ import {
   Map,
   TriangleAlert
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function MobileNavigation({ activeTab, setActiveTab }) {
+  const { t } = useLanguage();
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'ai', label: 'AI', icon: Sparkles },
-    { id: 'forecast', label: 'Forecast', icon: CloudSun },
-    { id: 'map', label: 'Map', icon: Map },
-    { id: 'alerts', label: 'Alerts', icon: TriangleAlert },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'ai', label: t('nav.weatherGPT'), icon: Sparkles },
+    { id: 'forecast', label: t('nav.forecast'), icon: CloudSun },
+    { id: 'map', label: t('nav.maps'), icon: Map },
+    { id: 'alerts', label: t('nav.alerts'), icon: TriangleAlert },
   ];
 
   return (

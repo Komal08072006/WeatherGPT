@@ -1,8 +1,10 @@
 import React from 'react';
 import WeatherMapPreview from '../components/map/WeatherMapPreview';
 import { Map } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function WeatherMapPage({ currentLocation }) {
+  const { t } = useLanguage();
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -11,9 +13,9 @@ export default function WeatherMapPage({ currentLocation }) {
           <Map className="w-5 h-5" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Weather Radar & Live Map</h1>
+          <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">{t('nav.maps')}</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Live rain radar and current conditions map centered over <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'Selected Location'}</span>.
+            {t('nav.maps')} — <span className="font-semibold text-slate-700 dark:text-slate-200">{currentLocation?.name || 'Lucknow'}</span>.
           </p>
         </div>
       </div>
