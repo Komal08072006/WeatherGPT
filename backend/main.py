@@ -20,6 +20,9 @@ GEMINI_API_KEY = (os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or 
 OPENWEATHER_API_KEY = (os.getenv("OPENWEATHER_API_KEY") or "").strip()
 GROQ_API_KEY = (os.getenv("GROQ_API_KEY") or "").strip()
 SARVAM_API_KEY = (os.getenv("SARVAM_API_KEY") or "").strip()
+TWILIO_ACCOUNT_SID = (os.getenv("TWILIO_ACCOUNT_SID") or "").strip()
+TWILIO_AUTH_TOKEN = (os.getenv("TWILIO_AUTH_TOKEN") or "").strip()
+TWILIO_PHONE_NUMBER = (os.getenv("TWILIO_PHONE_NUMBER") or "").strip()
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -1708,8 +1711,226 @@ async def process_text_to_speech(req: SarvamTTSRequest):
         )
 
 
+# --- Automatic Weather Alert SMS & Duplicate Prevention ---
+LAST_SENT_SMS: dict[str, dict] = {}
+SMS_DEBOUNCE_SECONDS = 1800  # 30 minutes debounce window for identical alert status
+
+
+class SMSAlertRequest(BaseModel):
+    phone_number: str
+    location: str
+    is_severe: bool = False
+    alert_details: str | None = None
+    user_uid: str | None = None
+
+
+@app.post("/api/send-sms")
+async def send_weather_sms(req: SMSAlertRequest):
+    """
+    Send automatic weather alert or weather update SMS via Twilio.
+    Includes duplicate SMS protection and safe handling when Twilio keys are not configured.
+    """
+    if not req.phone_number:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+
+    loc = req.location or "Lucknow"
+
+    # Format weather message according to specifications (Requirements 11 & 12)
+    if req.is_severe:
+        details = req.alert_details or "Heavy rainfall is expected within the next 2 hours."
+        message = (
+            f"⚠️ WeatherGPT Alert\n\n"
+            f"Location: {loc}\n\n"
+            f"{details}\n\n"
+            f"Please stay alert and take necessary precautions."
+        )
+    else:
+        message = (
+            f"✅ WeatherGPT Weather Update\n\n"
+            f"Location: {loc}\n\n"
+            f"No severe weather alerts are currently active. Weather conditions are normal.\n\n"
+            f"Stay safe!"
+        )
+
+    phone_key = req.phone_number.replace(" ", "")
+    now = time.time()
+
+    # Requirement 16: Duplicate SMS Protection
+    if phone_key in LAST_SENT_SMS:
+        prev = LAST_SENT_SMS[phone_key]
+        time_passed = now - prev.get("last_sent", 0)
+        same_status = (prev.get("is_severe") == req.is_severe) and (prev.get("location") == loc)
+
+        if same_status and time_passed < SMS_DEBOUNCE_SECONDS:
+            return {
+                "status": "skipped",
+                "reason": f"Duplicate SMS suppressed (sent {int(time_passed)}s ago).",
+                "phone_number": req.phone_number,
+                "message": message
+            }
+
+    # Record timestamp & status before attempting send
+    LAST_SENT_SMS[phone_key] = {
+        "last_sent": now,
+        "is_severe": req.is_severe,
+        "location": loc
+    }
+
+    # Requirement 15: Check if Twilio credentials exist (backend only)
+    if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER):
+        print(f"[TWILIO SMS SIMULATED] To: {req.phone_number}\nMessage:\n{message}\n")
+        return {
+            "status": "simulated",
+            "message": "Twilio credentials not configured in backend .env. SMS notification simulated successfully.",
+            "phone_number": req.phone_number,
+            "content": message
+        }
+
+    # Send SMS via Twilio REST API using httpx
+    twilio_url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+    data = {
+        "From": TWILIO_PHONE_NUMBER,
+        "To": req.phone_number,
+        "Body": message
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                twilio_url,
+                data=data,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+                timeout=10.0
+            )
+            if res.status_code >= 400:
+                print(f"[TWILIO ERROR] HTTP {res.status_code}: {res.text}")
+                return {
+                    "status": "error",
+                    "detail": f"Twilio API error: {res.text}",
+                    "phone_number": req.phone_number
+                }
+
+            res_data = res.json()
+            return {
+                "status": "success",
+                "sid": res_data.get("sid"),
+                "phone_number": req.phone_number,
+                "content": message
+            }
+    except Exception as err:
+        print(f"[TWILIO SMS EXCEPTION] Failed to send SMS: {err}")
+        return {
+            "status": "error",
+            "detail": str(err),
+            "phone_number": req.phone_number
+        }
+
+
+
+class SendAlertSMSRequest(BaseModel):
+    phone_number: str
+    message: str | None = None
+    location: str | None = None
+    is_alert: bool | None = None
+    title: str | None = None
+    severity: str | None = None
+    expected_window: str | None = None
+    precipitation_expected_mm: float | None = None
+
+
+@app.post("/send-alert-sms")
+@app.post("/api/send-alert-sms")
+async def send_alert_sms(req: SendAlertSMSRequest):
+    """
+    Send SMS weather alert or status confirmation via Twilio.
+    Accepts direct message text or structured fields.
+    """
+    if not req.phone_number or not req.phone_number.strip():
+        raise HTTPException(status_code=400, detail="Phone number is required.")
+
+    sms_body = req.message
+    if not sms_body:
+        loc = req.location or "Lucknow"
+        if req.is_alert:
+            title = req.title or "Weather Warning"
+            sev = req.severity or "Alert"
+            win = req.expected_window or "Next 24 Hours"
+            precip = req.precipitation_expected_mm if req.precipitation_expected_mm is not None else 0
+            sms_body = (
+                f"⚠️ WeatherGPT Alert: {title}\n"
+                f"Location: {loc}\n"
+                f"Severity: {sev}\n"
+                f"Expected Window: {win}\n"
+                f"Precipitation: {precip} mm\n"
+                f"Source: Open-Meteo"
+            )
+        else:
+            precip = req.precipitation_expected_mm if req.precipitation_expected_mm is not None else 0
+            sms_body = (
+                f"✅ WeatherGPT: No Active Weather Alerts\n"
+                f"Location: {loc}\n"
+                f"Status: All Clear (Precipitation: {precip} mm, below warning threshold)\n"
+                f"Source: Open-Meteo"
+            )
+
+    if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER):
+        print(f"[TWILIO ALERT SMS SIMULATED] To: {req.phone_number}\nBody:\n{sms_body}\n")
+        return {
+            "status": "simulated",
+            "message": "Twilio credentials not configured in backend .env. SMS simulated successfully.",
+            "phone_number": req.phone_number,
+            "content": sms_body
+        }
+
+    twilio_url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
+    payload = {
+        "From": TWILIO_PHONE_NUMBER,
+        "To": req.phone_number.strip(),
+        "Body": sms_body
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                twilio_url,
+                data=payload,
+                auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
+                timeout=10.0
+            )
+
+            if res.status_code >= 400:
+                print(f"[TWILIO ERROR] HTTP {res.status_code}: {res.text}")
+                try:
+                    err_json = res.json()
+                    err_detail = err_json.get("message") or res.text
+                except Exception:
+                    err_detail = res.text
+
+                raise HTTPException(
+                    status_code=res.status_code if res.status_code < 500 else 500,
+                    detail=f"Twilio error ({res.status_code}): {err_detail}"
+                )
+
+            res_data = res.json()
+            return {
+                "status": "success",
+                "sid": res_data.get("sid"),
+                "phone_number": req.phone_number,
+                "content": sms_body
+            }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[TWILIO SMS EXCEPTION] {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send SMS via Twilio: {str(exc)}"
+        )
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
 
 
 

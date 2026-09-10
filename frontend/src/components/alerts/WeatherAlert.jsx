@@ -1,8 +1,8 @@
 import React from 'react';
-import { TriangleAlert, Clock, MapPin, Share2, FileText } from 'lucide-react';
+import { TriangleAlert, Clock, MapPin, Share2, FileText, Smartphone, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
-export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
+export default function WeatherAlert({ alertData, onShare, onViewAdvisory, onSendSMS, sendingSms }) {
   const { t, formatNumber } = useLanguage();
   if (!alertData) return null;
 
@@ -58,7 +58,18 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2 text-xs">
+      <div className="flex items-center justify-end gap-2 text-xs flex-wrap">
+        {onSendSMS && (
+          <button
+            onClick={onSendSMS}
+            disabled={sendingSms}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+          >
+            {sendingSms ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Smartphone className="w-3.5 h-3.5" />}
+            <span>{sendingSms ? 'Sending SMS...' : 'Send SMS Alert'}</span>
+          </button>
+        )}
+
         <button
           onClick={onShare}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-semibold hover:bg-amber-50 dark:hover:bg-slate-800 transition-colors shadow-2xs cursor-pointer"
@@ -78,3 +89,4 @@ export default function WeatherAlert({ alertData, onShare, onViewAdvisory }) {
     </div>
   );
 }
+

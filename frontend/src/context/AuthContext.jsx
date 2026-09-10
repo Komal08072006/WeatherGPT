@@ -43,6 +43,8 @@ export function AuthProvider({ children }) {
           name: data.name || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
           email: firebaseUser.email || data.email,
           photoURL: data.photoURL || firebaseUser.photoURL || null,
+          phoneNumber: data.phoneNumber || null,
+          smsAlertsEnabled: data.smsAlertsEnabled !== undefined ? data.smsAlertsEnabled : false,
           createdAt: data.createdAt
         };
         setUserProfile(profile);
@@ -54,6 +56,8 @@ export function AuthProvider({ children }) {
           name: preferredName || firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User'),
           email: firebaseUser.email || '',
           photoURL: firebaseUser.photoURL || null,
+          phoneNumber: null,
+          smsAlertsEnabled: false,
           createdAt: serverTimestamp()
         };
         await setDoc(userDocRef, newProfile);
@@ -66,7 +70,9 @@ export function AuthProvider({ children }) {
         uid: firebaseUser.uid,
         name: preferredName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
         email: firebaseUser.email || '',
-        photoURL: firebaseUser.photoURL || null
+        photoURL: firebaseUser.photoURL || null,
+        phoneNumber: null,
+        smsAlertsEnabled: false
       };
       setUserProfile(fallbackProfile);
       return fallbackProfile;
@@ -152,8 +158,8 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Update User Profile (display name & photo URL)
-  const updateUserProfileData = async ({ name, photoURL }) => {
+  // Update User Profile (display name, photo URL, phone number, and SMS alert preference)
+  const updateUserProfileData = async ({ name, photoURL, phoneNumber, smsAlertsEnabled }) => {
     const userToUpdate = auth.currentUser || currentUser;
     if (!userToUpdate) {
       throw new Error('No logged in user found.');
@@ -161,6 +167,8 @@ export function AuthProvider({ children }) {
 
     const updatedDisplayName = name !== undefined ? name : (userToUpdate.displayName || '');
     const updatedPhotoURL = photoURL !== undefined ? photoURL : (userToUpdate.photoURL || null);
+    const updatedPhoneNumber = phoneNumber !== undefined ? phoneNumber : (userProfile?.phoneNumber || null);
+    const updatedSmsAlerts = smsAlertsEnabled !== undefined ? smsAlertsEnabled : (userProfile?.smsAlertsEnabled ?? false);
 
     // 1. Update Firebase Auth user profile
     if (auth.currentUser) {
@@ -176,7 +184,10 @@ export function AuthProvider({ children }) {
       await setDoc(userDocRef, {
         name: updatedDisplayName,
         photoURL: updatedPhotoURL,
-        email: userToUpdate.email || ''
+        email: userToUpdate.email || '',
+        phoneNumber: updatedPhoneNumber,
+        smsAlertsEnabled: updatedSmsAlerts,
+        updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (error) {
       console.warn("Firestore user profile update warning:", error);
@@ -188,7 +199,9 @@ export function AuthProvider({ children }) {
       uid: userToUpdate.uid,
       name: updatedDisplayName,
       photoURL: updatedPhotoURL,
-      email: userToUpdate.email || userProfile?.email || ''
+      email: userToUpdate.email || userProfile?.email || '',
+      phoneNumber: updatedPhoneNumber,
+      smsAlertsEnabled: updatedSmsAlerts
     };
     setUserProfile(newProfile);
 
@@ -204,6 +217,36 @@ export function AuthProvider({ children }) {
     return newProfile;
   };
 
+  // Update User Phone Number and SMS Alert preference
+  const updateUserPhoneNumber = async (phoneNumber, smsAlertsEnabled) => {
+    const userToUpdate = auth.currentUser || currentUser;
+    if (!userToUpdate) {
+      throw new Error('No logged in user found.');
+    }
+
+    const updatedProfile = {
+      ...(userProfile || {}),
+      uid: userToUpdate.uid,
+      phoneNumber: phoneNumber || null,
+      smsAlertsEnabled: smsAlertsEnabled !== undefined ? smsAlertsEnabled : false
+    };
+
+    // Update Firestore user document
+    try {
+      const userDocRef = doc(db, 'users', userToUpdate.uid);
+      await setDoc(userDocRef, {
+        phoneNumber: phoneNumber || null,
+        smsAlertsEnabled: smsAlertsEnabled !== undefined ? smsAlertsEnabled : false,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.warn("Firestore phone number update warning:", error);
+    }
+
+    setUserProfile(updatedProfile);
+    return updatedProfile;
+  };
+
   const value = {
     currentUser,
     userProfile,
@@ -212,7 +255,8 @@ export function AuthProvider({ children }) {
     loginWithEmail,
     loginWithGoogle,
     logout,
-    updateUserProfileData
+    updateUserProfileData,
+    updateUserPhoneNumber
   };
 
   return (

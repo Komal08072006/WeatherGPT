@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import WeatherAlert from '../components/alerts/WeatherAlert';
-import { TriangleAlert, ShieldCheck, CheckCircle2, Share2, FileText, Loader2 } from 'lucide-react';
+import { TriangleAlert, ShieldCheck, CheckCircle2, Share2, FileText, Loader2, Smartphone } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
   const { t, formatNumber } = useLanguage();
+  const { userProfile } = useAuth();
   const [alertState, setAlertState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sendingSms, setSendingSms] = useState(false);
+  const [smsStatus, setSmsStatus] = useState(null);
 
   const searchLocation = currentLocation?.searchName || (currentLocation?.name ? currentLocation.name.split(',')[0].trim() : 'Lucknow');
   const displayLocation = currentLocation?.name || 'Lucknow';
@@ -50,6 +54,71 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
     };
   }, [searchLocation, displayLocation, currentLocation?.latitude, currentLocation?.longitude]);
 
+  const handleSendSMS = async () => {
+    setSmsStatus(null);
+
+    if (!userProfile?.phoneNumber) {
+      setSmsStatus({
+        type: 'error',
+        message: 'No phone number found in profile. Please add your phone number in Settings.'
+      });
+      return;
+    }
+
+    const hasAlert = Boolean(alertState?.has_alert);
+    const locName = alertState?.full_location || alertState?.location || displayLocation;
+
+    let messageText = '';
+    if (hasAlert) {
+      messageText = `⚠️ WeatherGPT Alert: ${alertState.title}\nLocation: ${locName}\nSeverity: ${alertState.severity}\nExpected Window: ${alertState.expected_window}\nPrecipitation: ${alertState.precipitation_expected_mm} mm\nSource: ${alertState.source || 'Open-Meteo'}`;
+    } else {
+      const precip = alertState?.precipitation_expected_mm ?? 0;
+      messageText = `✅ WeatherGPT: No Active Weather Alerts\nLocation: ${locName}\nStatus: All Clear (Precipitation: ${precip} mm, below warning threshold)\nSource: ${alertState?.source || 'Open-Meteo'}`;
+    }
+
+    setSendingSms(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/send-alert-sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: userProfile.phoneNumber,
+          message: messageText,
+          location: locName,
+          is_alert: hasAlert,
+          title: alertState?.title,
+          severity: alertState?.severity,
+          expected_window: alertState?.expected_window,
+          precipitation_expected_mm: alertState?.precipitation_expected_mm
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || 'Failed to send SMS');
+      }
+
+      if (data.status === 'simulated') {
+        setSmsStatus({
+          type: 'success',
+          message: `Simulated SMS sent to ${userProfile.phoneNumber} (Twilio keys missing)`
+        });
+      } else {
+        setSmsStatus({
+          type: 'success',
+          message: `SMS sent successfully to ${userProfile.phoneNumber}!`
+        });
+      }
+    } catch (err) {
+      console.error('Failed to send SMS:', err);
+      setSmsStatus({
+        type: 'error',
+        message: err.message || 'Failed to send SMS notification.'
+      });
+    } finally {
+      setSendingSms(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +134,20 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           </p>
         </div>
       </div>
+
+      {/* SMS Status Feedback Banner */}
+      {smsStatus && (
+        <div className={`p-3.5 rounded-xl text-xs font-medium border flex items-center justify-between gap-2 shadow-xs transition-all ${
+          smsStatus.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-800'
+            : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/70 dark:text-red-200 dark:border-red-800'
+        }`}>
+          <span>{smsStatus.message}</span>
+          <button onClick={() => setSmsStatus(null)} className="text-xs font-bold opacity-60 hover:opacity-100 px-1 cursor-pointer">
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       {loading ? (
@@ -87,6 +170,8 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           }}
           onShare={() => alert('Alert details copied to clipboard')}
           onViewAdvisory={() => alert(`View advisory for ${alertState.location}`)}
+          onSendSMS={handleSendSMS}
+          sendingSms={sendingSms}
         />
       ) : (
         <div className="bg-gradient-to-br from-emerald-50/90 via-teal-50/40 to-slate-50 dark:from-emerald-950/40 dark:via-teal-950/30 dark:to-slate-900 border border-emerald-200/80 dark:border-emerald-800/60 rounded-2xl p-6 shadow-xs relative overflow-hidden">
@@ -115,7 +200,15 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end gap-2 text-xs">
+          <div className="flex items-center justify-end gap-2 text-xs flex-wrap">
+            <button
+              onClick={handleSendSMS}
+              disabled={sendingSms}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+            >
+              {sendingSms ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Smartphone className="w-3.5 h-3.5" />}
+              <span>{sendingSms ? 'Sending SMS...' : 'Send SMS Confirmation'}</span>
+            </button>
             <button
               disabled
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-semibold cursor-not-allowed text-xs opacity-70"
@@ -123,17 +216,11 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
               <Share2 className="w-3.5 h-3.5" />
               <span>Share Alert</span>
             </button>
-            <button
-              disabled
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold cursor-not-allowed text-xs opacity-70"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>No Advisory Required</span>
-            </button>
           </div>
         </div>
       )}
     </div>
   );
 }
+
 

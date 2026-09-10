@@ -10,6 +10,8 @@ import ClimateInsight from '../components/climate/ClimateInsight';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import PhoneNumberModal from '../components/modals/PhoneNumberModal';
 
 export default function DashboardPage({
   currentLocation,
@@ -25,10 +27,36 @@ export default function DashboardPage({
   onNavigate
 }) {
   const { t, formatNumber } = useLanguage();
+  const { userProfile } = useAuth();
   const [realWeather, setRealWeather] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const weatherRequestIdRef = React.useRef(0);
+
+  const triggerSmsAlertIfNeeded = async (locationName, data) => {
+    if (!userProfile?.phoneNumber || !userProfile?.smsAlertsEnabled) {
+      return;
+    }
+    const precip = data?.weather?.current?.precipitation || 0;
+    const isSevere = activeViewMode === 'severe' || precip > 15;
+    const alertMsg = isSevere ? 'Heavy rainfall is expected within the next 2 hours.' : null;
+
+    try {
+      await fetch(`${API_BASE_URL}/api/send-sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number: userProfile.phoneNumber,
+          location: data?.location || locationName || 'Lucknow',
+          is_severe: isSevere,
+          alert_details: alertMsg,
+          user_uid: userProfile?.uid
+        })
+      });
+    } catch (err) {
+      console.warn('[DashboardPage] Trigger SMS alert warning:', err);
+    }
+  };
 
   const searchLocation = currentLocation?.searchName || (currentLocation?.name ? currentLocation.name.split(',')[0].trim() : 'Lucknow');
   const displayLocation = currentLocation?.name || 'Lucknow';
@@ -82,6 +110,7 @@ export default function DashboardPage({
         setError(null);
         clearTimeout(timeoutId);
         setLoading(false);
+        triggerSmsAlertIfNeeded(displayLocation, data);
         return;
       } catch (err) {
         clearTimeout(timeoutId);
@@ -302,6 +331,9 @@ export default function DashboardPage({
 
   return (
     <div>
+      {/* Post-login Phone Number Modal Popup */}
+      <PhoneNumberModal />
+
       {/* Main Dashboard Title Header */}
       <MainWeatherHeader
         activeViewMode={activeViewMode}

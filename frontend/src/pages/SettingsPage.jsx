@@ -1,6 +1,8 @@
-import React from 'react';
-import { Settings, MapPin, Bell, Globe, Sun, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, MapPin, Bell, Globe, Sun, Moon, Phone, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { validatePhoneNumber, formatPhoneNumber, maskPhoneNumber } from '../utils/phoneUtils';
 
 export default function SettingsPage({
   currentLocation,
@@ -8,6 +10,91 @@ export default function SettingsPage({
   onThemeChange
 }) {
   const { selectedLanguage, setSelectedLanguage, t } = useLanguage();
+  const { userProfile, updateUserPhoneNumber } = useAuth();
+
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [inputPhone, setInputPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const hasPhone = Boolean(userProfile?.phoneNumber);
+  const smsAlertsEnabled = Boolean(userProfile?.smsAlertsEnabled);
+
+  useEffect(() => {
+    if (userProfile?.phoneNumber) {
+      setInputPhone(userProfile.phoneNumber);
+    }
+  }, [userProfile?.phoneNumber]);
+
+  const handleStartEdit = () => {
+    setInputPhone(userProfile?.phoneNumber || '');
+    setPhoneError('');
+    setSuccessMessage('');
+    setIsEditingPhone(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingPhone(false);
+    setPhoneError('');
+    setInputPhone(userProfile?.phoneNumber || '');
+  };
+
+  const handleSavePhone = async (e) => {
+    e.preventDefault();
+    setPhoneError('');
+    setSuccessMessage('');
+
+    const cleanInput = inputPhone.trim();
+    const validation = validatePhoneNumber(cleanInput);
+    if (!validation.isValid) {
+      setPhoneError(validation.error || 'Please enter a valid phone number.');
+      return;
+    }
+
+    const formatted = formatPhoneNumber(cleanInput);
+    if (!formatted) {
+      setPhoneError('Please enter a valid phone number.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const isNewNumber = !hasPhone;
+      // If first time adding phone, enable SMS alerts by default. If updating, keep current SMS setting.
+      const enableSms = isNewNumber ? true : smsAlertsEnabled;
+      await updateUserPhoneNumber(formatted, enableSms);
+
+      setIsEditingPhone(false);
+      if (isNewNumber) {
+        setSuccessMessage("✅ Phone number added successfully. You'll now receive WeatherGPT alerts on your phone.");
+      } else {
+        setSuccessMessage('✅ Phone number updated successfully.');
+      }
+
+      setTimeout(() => {
+        setSuccessMessage('');
+      }, 5000);
+    } catch (err) {
+      console.error('Error saving phone number:', err);
+      setPhoneError('Failed to save phone number. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleSmsAlerts = async () => {
+    if (!hasPhone || saving) return;
+    const newStatus = !smsAlertsEnabled;
+    setSaving(true);
+    try {
+      await updateUserPhoneNumber(userProfile.phoneNumber, newStatus);
+    } catch (err) {
+      console.error('Error toggling SMS alerts:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -51,6 +138,137 @@ export default function SettingsPage({
           <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/80 px-3 py-1 rounded-xl border border-amber-200 dark:border-amber-800/60">
             {t('common.active')}
           </span>
+        </div>
+
+        {/* 📱 Weather Alert Notifications & Phone Number Section */}
+        <div className="pb-5 border-b border-slate-100 dark:border-slate-800 space-y-4">
+          <div className="flex items-center gap-3">
+            <Phone className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <div className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                📱 Weather Alert Notifications
+              </div>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                Receive WeatherGPT weather alerts directly on your phone.
+              </div>
+            </div>
+          </div>
+
+          {/* Success Banner */}
+          {successMessage && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800/80 rounded-xl text-xs font-medium text-emerald-800 dark:text-emerald-200 flex items-start gap-2 animate-in fade-in duration-200">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* Phone Number Box */}
+          <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200/80 dark:border-slate-700/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Phone Number
+                </div>
+                {!isEditingPhone && (
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                    {hasPhone ? maskPhoneNumber(userProfile.phoneNumber) : 'No phone number added.'}
+                  </div>
+                )}
+              </div>
+
+              {!isEditingPhone && (
+                <button
+                  type="button"
+                  onClick={handleStartEdit}
+                  className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                >
+                  {hasPhone ? 'Change Number' : 'Add Phone Number'}
+                </button>
+              )}
+            </div>
+
+            {/* Editing State Form */}
+            {isEditingPhone && (
+              <form onSubmit={handleSavePhone} className="space-y-3 pt-1">
+                <div className="relative flex items-center">
+                  <input
+                    type="tel"
+                    value={inputPhone}
+                    onChange={(e) => {
+                      setInputPhone(e.target.value);
+                      if (phoneError) setPhoneError('');
+                    }}
+                    placeholder="+919876543210 or 9876543210"
+                    disabled={saving}
+                    className="w-full pl-3 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
+                  />
+                </div>
+
+                {phoneError && (
+                  <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-medium">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{phoneError}</span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-70"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <span>Save Number</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="px-3.5 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* SMS Weather Alerts Toggle Row */}
+            <div className="pt-3 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                  SMS Weather Alerts
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {hasPhone
+                    ? 'Receive weather alerts on your phone.'
+                    : 'Add a phone number to receive alerts by SMS.'}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleSmsAlerts}
+                disabled={!hasPhone || saving}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  smsAlertsEnabled && hasPhone
+                    ? 'bg-emerald-500'
+                    : 'bg-slate-300 dark:bg-slate-700 opacity-60 cursor-not-allowed'
+                } ${!hasPhone ? 'opacity-40 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    smsAlertsEnabled && hasPhone ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Language Preference (Synced with Header & App state) */}

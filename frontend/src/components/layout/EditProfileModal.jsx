@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Mail, Camera, Upload, Link as LinkIcon, Check, AlertCircle, Loader2, Info } from 'lucide-react';
+import { X, User, Mail, Phone, Camera, Upload, Link as LinkIcon, Check, AlertCircle, Loader2, Info } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
+import { validatePhoneNumber, formatPhoneNumber } from '../../utils/phoneUtils';
 
 export default function EditProfileModal({ isOpen, onClose }) {
   const { currentUser, userProfile, updateUserProfileData } = useAuth();
@@ -9,6 +10,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [photoURL, setPhotoURL] = useState('');
   const [avatarMode, setAvatarMode] = useState('url'); // 'url' | 'file'
   
@@ -21,10 +23,12 @@ export default function EditProfileModal({ isOpen, onClose }) {
     if (isOpen) {
       const currentName = userProfile?.name || currentUser?.displayName || '';
       const currentEmail = userProfile?.email || currentUser?.email || '';
+      const currentPhone = userProfile?.phoneNumber || '';
       const currentPhoto = userProfile?.photoURL || currentUser?.photoURL || '';
 
       setDisplayName(currentName);
       setEmail(currentEmail);
+      setPhoneNumber(currentPhone);
       setPhotoURL(currentPhoto);
       setError(null);
       setSuccess(false);
@@ -72,11 +76,35 @@ export default function EditProfileModal({ isOpen, onClose }) {
       return;
     }
 
+    // Phone validation & normalization if phone is provided
+    const cleanPhone = phoneNumber.trim();
+    let formattedPhone = null;
+
+    if (cleanPhone) {
+      const validation = validatePhoneNumber(cleanPhone);
+      if (!validation.isValid) {
+        setError(validation.error || 'Please enter a valid phone number.');
+        return;
+      }
+
+      formattedPhone = formatPhoneNumber(cleanPhone);
+      if (!formattedPhone) {
+        setError('Please enter a valid phone number (e.g., +919876543210 or 9876543210).');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
+      // Determine smsAlertsEnabled: default true if adding phone for first time, else maintain current setting
+      const existingAlertSetting = userProfile?.smsAlertsEnabled;
+      const enableSmsAlerts = formattedPhone ? (existingAlertSetting !== undefined ? existingAlertSetting : true) : false;
+
       await updateUserProfileData({
         name: displayName.trim(),
-        photoURL: photoURL.trim() ? photoURL.trim() : null
+        photoURL: photoURL.trim() ? photoURL.trim() : null,
+        phoneNumber: formattedPhone,
+        smsAlertsEnabled: enableSmsAlerts
       });
 
       setSuccess(true);
@@ -229,6 +257,34 @@ export default function EditProfileModal({ isOpen, onClose }) {
             </div>
           </div>
 
+          {/* Phone Number Input */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Phone Number
+              </label>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded">
+                SMS Alerts
+              </span>
+            </div>
+            <div className="relative">
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => {
+                  setPhoneNumber(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="+919876543210 or 9876543210"
+                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-3.5 pr-9 py-2 text-xs font-medium text-slate-800 dark:text-slate-100 focus:outline-none focus:border-sky-500 focus:bg-white dark:focus:bg-slate-900 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
+              />
+              <Phone className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+              Used to receive severe weather alerts via SMS (e.g. +919876543210 or 9876543210).
+            </p>
+          </div>
+
           {/* Email Address Input (Read-only) */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -280,3 +336,4 @@ export default function EditProfileModal({ isOpen, onClose }) {
     </div>
   );
 }
+
