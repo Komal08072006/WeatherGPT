@@ -66,14 +66,15 @@ export default function AlertsPage({ mockWeatherAlert, currentLocation }) {
     }
 
     const hasAlert = Boolean(alertState?.has_alert);
-    const locName = alertState?.full_location || alertState?.location || displayLocation;
+    const locName = alertState?.location || displayLocation;
+    const precip = alertState?.precipitation_expected_mm ?? 0;
 
     let messageText = '';
     if (hasAlert) {
-      messageText = `⚠️ WeatherGPT Alert: ${alertState.title}\nLocation: ${locName}\nSeverity: ${alertState.severity}\nExpected Window: ${alertState.expected_window}\nPrecipitation: ${alertState.precipitation_expected_mm} mm\nSource: ${alertState.source || 'Open-Meteo'}`;
+      const windowStr = alertState?.expected_window || 'Next 24h';
+      messageText = `WeatherGPT Alert: ${alertState.severity || 'Warning'} - ${alertState.title || 'Alert'} for ${locName}. ${precip}mm expected (${windowStr}).`;
     } else {
-      const precip = alertState?.precipitation_expected_mm ?? 0;
-      messageText = `✅ WeatherGPT: No Active Weather Alerts\nLocation: ${locName}\nStatus: All Clear (Precipitation: ${precip} mm, below warning threshold)\nSource: ${alertState?.source || 'Open-Meteo'}`;
+      messageText = `WeatherGPT: No active weather alert for ${locName}. Current precip: ${precip}mm.`;
     }
 
     setSendingSms(true);
